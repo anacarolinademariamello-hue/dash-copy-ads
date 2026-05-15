@@ -204,7 +204,7 @@ with st.sidebar:
         key="tone",
     )
     format_type = st.selectbox(
-        "Formato",
+        "Onde o anúncio vai aparecer",
         options=FORMAT_OPTIONS,
         key="format_type",
     )

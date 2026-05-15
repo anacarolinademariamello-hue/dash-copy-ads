@@ -825,14 +825,14 @@ CTAS = [
 ]
 
 FORMAT_OPTIONS = [
-    "Feed (Post Único)",
+    "Feed — imagem ou vídeo único",
     "Stories",
-    "Reels (Legenda)",
+    "Reels",
     "Carrossel",
 ]
 
 FORMAT_TIPS = {
-    "Feed (Post Único)": (
+    "Feed — imagem ou vídeo único": (
         "O hook (primeira linha) é crítico — é o que aparece antes do 'ver mais'. "
         "Máximo visível sem clicar: ~125 caracteres. "
         "Pode ter até 2.200 caracteres no total. Use parágrafos curtos. "
@@ -844,7 +844,7 @@ FORMAT_TIPS = {
         "CTA precisa ser um swipe up ou botão claro. "
         "Use linguagem ultra conversacional e imediata."
     ),
-    "Reels (Legenda)": (
+    "Reels": (
         "A legenda do Reel pode ser curta (o vídeo já conta a história). "
         "Hook visual nos primeiros 3 segundos é o que importa. "
         "Legenda deve reforçar a mensagem principal e terminar com CTA. "
