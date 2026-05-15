@@ -1,4 +1,3 @@
-import json
 import re
 import anthropic
 import streamlit as st
@@ -144,59 +143,79 @@ Para cada variação, entregue DOIS blocos de texto:
 
 ## FORMATO DE RESPOSTA
 
-Responda APENAS com JSON válido, sem markdown externo:
+Use EXCLUSIVAMENTE o formato XML abaixo. Não use JSON. Não adicione nenhum texto fora das tags XML.
 
-{{
-  "copies": [
-    {{
-      "tipo_id": "dor",
-      "tipo_nome": "Identificação com a Dor",
-      "legenda_hook": "primeira frase da legenda",
-      "legenda_corpo": "restante da legenda sem hook e sem CTA",
-      "legenda_cta": "chamada para ação",
-      "legenda_completa": "legenda inteira formatada, pronta para colar no Meta Ads",
-      "criativo": "texto exato para o criativo conforme estrutura descrita"
-    }},
-    {{
-      "tipo_id": "beneficio",
-      "tipo_nome": "Benefício Direto",
-      "legenda_hook": "...",
-      "legenda_corpo": "...",
-      "legenda_cta": "...",
-      "legenda_completa": "...",
+<copies>
+<copy>
+<tipo_id>dor</tipo_id>
+<tipo_nome>Identificação com a Dor</tipo_nome>
+<legenda_hook>primeira frase da legenda</legenda_hook>
+<legenda_corpo>restante da legenda sem hook e sem CTA</legenda_corpo>
+<legenda_cta>chamada para ação</legenda_cta>
+<legenda_completa>legenda inteira formatada, pronta para colar no Meta Ads</legenda_completa>
+<criativo>texto exato para o criativo conforme estrutura descrita</criativo>
+</copy>
+<copy>
+<tipo_id>beneficio</tipo_id>
+<tipo_nome>Benefício Direto</tipo_nome>
+<legenda_hook>...</legenda_hook>
+<legenda_corpo>...</legenda_corpo>
+<legenda_cta>...</legenda_cta>
+<legenda_completa>...</legenda_completa>
+<criativo>...</criativo>
+</copy>
+<copy>
+<tipo_id>prova</tipo_id>
+<tipo_nome>Prova Social</tipo_nome>
+<legenda_hook>...</legenda_hook>
+<legenda_corpo>...</legenda_corpo>
+<legenda_cta>...</legenda_cta>
+<legenda_completa>...</legenda_completa>
+<criativo>...</criativo>
+</copy>
+<copy>
+<tipo_id>urgencia</tipo_id>
+<tipo_nome>Urgência / Escassez</tipo_nome>
+<legenda_hook>...</legenda_hook>
+<legenda_corpo>...</legenda_corpo>
+<legenda_cta>...</legenda_cta>
+<legenda_completa>...</legenda_completa>
       "criativo": "..."
-    }},
-    {{
-      "tipo_id": "prova",
-      "tipo_nome": "Prova Social",
-      "legenda_hook": "...",
-      "legenda_corpo": "...",
-      "legenda_cta": "...",
-      "legenda_completa": "...",
-      "criativo": "..."
-    }},
-    {{
-      "tipo_id": "urgencia",
-      "tipo_nome": "Urgência / Escassez",
-      "legenda_hook": "...",
-      "legenda_corpo": "...",
-      "legenda_cta": "...",
-      "legenda_completa": "...",
-      "criativo": "..."
-    }},
-    {{
-      "tipo_id": "story",
-      "tipo_nome": "Storytelling",
-      "legenda_hook": "...",
-      "legenda_corpo": "...",
-      "legenda_cta": "...",
-      "legenda_completa": "...",
-      "criativo": "..."
-    }}
-  ]
-}}"""
+    <criativo>...</criativo>
+</copy>
+<copy>
+<tipo_id>story</tipo_id>
+<tipo_nome>Storytelling</tipo_nome>
+<legenda_hook>...</legenda_hook>
+<legenda_corpo>...</legenda_corpo>
+<legenda_cta>...</legenda_cta>
+<legenda_completa>...</legenda_completa>
+<criativo>...</criativo>
+</copy>
+</copies>"""
 
     return prompt
+
+
+def _extract_tag(text: str, tag: str) -> str:
+    match = re.search(rf"<{tag}>(.*?)</{tag}>", text, re.DOTALL)
+    return match.group(1).strip() if match else ""
+
+
+def _parse_xml_response(raw: str) -> list[dict]:
+    copies = []
+    blocks = re.findall(r"<copy>(.*?)</copy>", raw, re.DOTALL)
+    for block in blocks:
+        copies.append({
+            "tipo_id":         _extract_tag(block, "tipo_id"),
+            "tipo_nome":       _extract_tag(block, "tipo_nome"),
+            "legenda_hook":    _extract_tag(block, "legenda_hook"),
+            "legenda_corpo":   _extract_tag(block, "legenda_corpo"),
+            "legenda_cta":     _extract_tag(block, "legenda_cta"),
+            "legenda_completa": _extract_tag(block, "legenda_completa"),
+            "criativo":        _extract_tag(block, "criativo"),
+        })
+    return copies
 
 
 def generate_copies(form: dict) -> list[dict]:
@@ -220,19 +239,10 @@ def generate_copies(form: dict) -> list[dict]:
     )
 
     raw = message.content[0].text.strip()
-    raw = re.sub(r"^```(?:json)?\s*", "", raw)
-    raw = re.sub(r"\s*```$", "", raw)
 
-    try:
-        data = json.loads(raw)
-        copies = data.get("copies", [])
-    except json.JSONDecodeError:
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
-        if match:
-            data = json.loads(match.group())
-            copies = data.get("copies", [])
-        else:
-            raise ValueError(f"Não foi possível interpretar a resposta. Trecho:\n{raw[:500]}")
+    copies = _parse_xml_response(raw)
+    if not copies:
+        raise ValueError(f"Não foi possível interpretar a resposta. Trecho:\n{raw[:500]}")
 
     type_map = {c["id"]: c for c in COPY_TYPES}
     for copy in copies:
