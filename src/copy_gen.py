@@ -159,7 +159,7 @@ Para cada variação, entregue DOIS blocos:
 - Hook da legenda (primeira frase) DEVE parar o scroll — é o elemento mais crítico
 
 **Estruturas PROIBIDAS:**
-- "Não é X. É Y." e qualquer variação dessa construção
+- O padrão "negação + afirmação em duas frases curtas": "Não é X. É Y.", "Não foi sorte. Foi método.", "Não é treino. É ciência.", "Não é dieta. É estilo de vida." — PROIBIDO em qualquer variação de verbo, substantivo ou tempo verbal. Se a segunda frase corrige ou redefine a primeira, é essa estrutura. Não use.
 - Clichês: "não perca tempo", "corra", "oferta imperdível", "oportunidade única"
 - Perguntas óbvias demais: "Quer emagrecer?", "Quer ganhar dinheiro?"
 - Hipérboles sem respaldo: "revolucionário", "milagroso", "nunca visto antes"
