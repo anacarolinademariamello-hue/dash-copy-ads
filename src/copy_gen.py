@@ -75,10 +75,40 @@ def _build_prompt(form: dict) -> str:
     offer_line = f"\n- Oferta/Preço: {form['offer']}" if form.get("offer") else ""
     usp_line = f"\n- Diferencial/USP: {form['usp']}" if form.get("usp") else ""
     kw_line = f"\n- Palavras-chave/Diferenciais: {form['extra_keywords']}" if form.get("extra_keywords") else ""
+    client_line = f"\n- Cliente: {form['client_name']}" if form.get("client_name") else ""
     ref_line = (
         f"\n\n## REFERÊNCIAS DE COPY (tom e estilo para se inspirar, não copiar)\n{form['referencias']}"
         if form.get("referencias") else ""
     )
+    tov_line = (
+        f"\n\n## TOM DE VOZ DO CLIENTE — SIGA RIGOROSAMENTE\n{form['client_tone_of_voice']}"
+        if form.get("client_tone_of_voice") else ""
+    )
+
+    tipo = form.get("tipo_criativo", "Card (imagem)")
+    criativo_instrucao = {
+        "Vídeo": (
+            "Escreva o ROTEIRO completo para o vídeo conforme a estrutura descrita. "
+            "Inclua: o que falar nos primeiros 3 segundos (gancho), desenvolvimento da mensagem, CTA falado. "
+            "Separe claramente cada parte. Escreva exatamente o que a pessoa vai falar — sem descrições de cena."
+        ),
+        "Card (imagem)": (
+            "Escreva os TEXTOS EXATOS que vão na imagem conforme a estrutura descrita. "
+            "Headline, subheadline, e qualquer outro texto visível. "
+            "Sem instruções de design — só o texto em si."
+        ),
+        "Carrossel": (
+            "Escreva os TEXTOS DE CADA SLIDE conforme a estrutura descrita. "
+            "Numere claramente: Slide 1:, Slide 2:, etc. "
+            "Cada slide deve ter sua headline e texto de apoio, se houver. Só o texto — sem instruções visuais."
+        ),
+    }.get(tipo, "Escreva os textos exatos para o criativo conforme a estrutura descrita.")
+
+    criativo_label = {
+        "Vídeo": "Roteiro",
+        "Card (imagem)": "Texto da Imagem",
+        "Carrossel": "Textos dos Slides",
+    }.get(tipo, "Copy do Criativo")
 
     prompt = f"""Você é um redator sênior especialista em Meta Ads (Facebook e Instagram Ads) com profundo conhecimento do mercado brasileiro. Você escreve EXCLUSIVAMENTE copies para anúncios pagos — não posts orgânicos. Sua especialidade é criar textos que param o scroll, geram identificação imediata e aumentam o ROI dos anúncios.
 
@@ -88,13 +118,15 @@ def _build_prompt(form: dict) -> str:
 - **Produto/Serviço:** {form['product']}
 - **Público-Alvo:** {form['audience']}
 - **Principal Dor:** {form['pain']}
-- **Principal Desejo:** {form['desire']}{usp_line}{offer_line}
+- **Principal Desejo:** {form['desire']}{usp_line}{offer_line}{client_line}
 - **Objetivo:** {form['objective']} — {form['objective_desc']}
 - **Tom de Voz:** {form['tone']}
-- **CTA Desejado:** {form['cta']}{kw_line}
+- **CTA Desejado:** {form['cta']}{kw_line}{tov_line}
+
+## TIPO DE CRIATIVO: {tipo}
 
 ## ESTRUTURA DO CRIATIVO
-{form['criativo_estrutura'] if form.get('criativo_estrutura') else 'Criativo livre — gere headlines e texto de apoio que funcionem bem em imagem estática ou vídeo curto.'}
+{form['criativo_estrutura'] if form.get('criativo_estrutura') else 'Sem estrutura definida — use seu julgamento para o tipo de criativo selecionado.'}
 {ref_line}
 
 ## O QUE FUNCIONA NESSE NICHO
@@ -110,6 +142,10 @@ Gere EXATAMENTE 5 variações de copy para esse anúncio, cada uma com abordagem
 {copies_spec}
 
 Para cada variação, entregue DOIS blocos de texto:
+
+**{criativo_label}:** {criativo_instrucao}
+
+Para cada variação, entregue DOIS blocos:
 
 **LEGENDA:** o texto completo da publicação no Meta Ads (aparece abaixo do criativo no feed). Estrutura: hook na primeira linha, corpo, CTA. Parágrafos curtos. Deve funcionar no feed do Facebook e do Instagram.
 
@@ -216,6 +252,13 @@ def _parse_xml_response(raw: str) -> list[dict]:
             "criativo":        _extract_tag(block, "criativo"),
         })
     return copies
+
+
+CRIATIVO_LABELS = {
+    "Vídeo": "Roteiro",
+    "Card (imagem)": "Texto da Imagem",
+    "Carrossel": "Textos dos Slides",
+}
 
 
 def generate_copies(form: dict) -> list[dict]:

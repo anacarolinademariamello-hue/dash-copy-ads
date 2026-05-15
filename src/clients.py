@@ -1,0 +1,145 @@
+import json
+import base64
+import requests
+import streamlit as st
+
+REPO = "anacarolinademariamello-hue/dash-copy-ads"
+FILE_PATH = "clients.json"
+
+
+def _gh_headers() -> dict:
+    token = ""
+    try:
+        token = st.secrets.get("GITHUB_TOKEN", "")
+    except Exception:
+        pass
+    h = {"Accept": "application/vnd.github.v3+json"}
+    if token:
+        h["Authorization"] = f"token {token}"
+    return h
+
+
+@st.cache_data(ttl=120)
+def load_clients() -> list[dict]:
+    """Lê clientes do GitHub API (primário) ou arquivo local (fallback)."""
+    try:
+        url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
+        resp = requests.get(url, headers=_gh_headers(), timeout=8)
+        if resp.status_code == 200:
+            raw = base64.b64decode(resp.json()["content"]).decode("utf-8")
+            return json.loads(raw).get("clients", [])
+    except Exception:
+        pass
+
+    try:
+        with open(FILE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f).get("clients", [])
+    except Exception:
+        return []
+
+
+def save_client(new_client: dict) -> tuple[bool, str]:
+    """Adiciona cliente e salva no GitHub."""
+    clients = load_clients()
+
+    if any(c["name"].lower() == new_client["name"].lower() for c in clients):
+        return False, f"Já existe um cliente com o nome '{new_client['name']}'."
+
+    clients.append(new_client)
+
+    content = json.dumps({"clients": clients}, ensure_ascii=False, indent=2)
+    encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+
+    try:
+        token = ""
+        try:
+            token = st.secrets.get("GITHUB_TOKEN", "")
+        except Exception:
+            pass
+
+        if not token:
+            # Salva só localmente
+            with open(FILE_PATH, "w", encoding="utf-8") as f:
+                f.write(content)
+            load_clients.clear()
+            return True, "Cliente salvo localmente. Adicione GITHUB_TOKEN nos secrets para persistir no Streamlit Cloud."
+
+        headers = _gh_headers()
+        url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
+
+        resp = requests.get(url, headers=headers, timeout=8)
+        sha = resp.json().get("sha") if resp.status_code == 200 else None
+
+        payload = {"message": f"Cadastra cliente: {new_client['name']}", "content": encoded}
+        if sha:
+            payload["sha"] = sha
+
+        put = requests.put(url, headers=headers, json=payload, timeout=15)
+        if put.status_code in (200, 201):
+            load_clients.clear()
+            return True, f"Cliente '{new_client['name']}' salvo com sucesso!"
+
+        return False, f"Erro ao salvar no GitHub ({put.status_code}). Verifique o GITHUB_TOKEN."
+
+    except Exception as e:
+        return False, f"Erro de conexão: {e}"
+
+
+def delete_client(name: str) -> tuple[bool, str]:
+    """Remove cliente pelo nome e salva."""
+    clients = load_clients()
+    updated = [c for c in clients if c["name"] != name]
+
+    if len(updated) == len(clients):
+        return False, "Cliente não encontrado."
+
+    content = json.dumps({"clients": updated}, ensure_ascii=False, indent=2)
+    encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+
+    try:
+        token = ""
+        try:
+            token = st.secrets.get("GITHUB_TOKEN", "")
+        except Exception:
+            pass
+
+        if not token:
+            with open(FILE_PATH, "w", encoding="utf-8") as f:
+                f.write(content)
+            load_clients.clear()
+            return True, "Cliente removido localmente."
+
+        headers = _gh_headers()
+        url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
+        resp = requests.get(url, headers=headers, timeout=8)
+        sha = resp.json().get("sha") if resp.status_code == 200 else None
+
+        payload = {"message": f"Remove cliente: {name}", "content": encoded}
+        if sha:
+            payload["sha"] = sha
+
+        put = requests.put(url, headers=headers, json=payload, timeout=15)
+        if put.status_code in (200, 201):
+            load_clients.clear()
+            return True, f"Cliente '{name}' removido."
+
+        return False, f"Erro ao remover no GitHub ({put.status_code})."
+
+    except Exception as e:
+        return False, f"Erro: {e}"
+
+
+def extract_text(uploaded_file) -> str:
+    """Extrai texto de arquivo TXT ou PDF."""
+    name = uploaded_file.name.lower()
+    if name.endswith(".txt"):
+        return uploaded_file.read().decode("utf-8", errors="ignore").strip()
+    elif name.endswith(".pdf"):
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(uploaded_file)
+            pages = [p.extract_text() or "" for p in reader.pages]
+            return "\n".join(pages).strip()
+        except Exception as e:
+            return f"[Erro ao ler PDF: {e}]"
+    return uploaded_file.read().decode("utf-8", errors="ignore").strip()
