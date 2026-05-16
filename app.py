@@ -145,7 +145,7 @@ with st.sidebar:
     if _logo_b64:
         st.markdown(
             f'<div class="sb-brand"><img src="data:image/png;base64,{_logo_b64}" '
-            f'style="height:38px;border-radius:8px;background:white;padding:3px 10px;"></div>'
+            f'style="height:38px;"></div>'
             f'<hr class="sb-divider">',
             unsafe_allow_html=True,
         )
