@@ -132,8 +132,6 @@ def _build_download_html(copies: list, fd: dict) -> str:
 for key, default in [
     ("copies", None),
     ("form_data", None),
-    ("show_registration", False),
-    ("pending_clients", []),   # clientes adicionados nesta sessão (antes do redeploy)
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -240,7 +238,7 @@ st.markdown(get_page_header_html(), unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div class="client-section"><div class="form-section-title">Modo de uso</div>', unsafe_allow_html=True)
 
-modo = st.radio("", ["Consulta avulsa", "Cliente cadastrado", "＋ Novo cliente"],
+modo = st.radio("", ["Consulta avulsa", "Cliente cadastrado"],
                 horizontal=True, label_visibility="collapsed", key="modo")
 
 selected_client = None
@@ -248,10 +246,7 @@ selected_client = None
 if modo == "Cliente cadastrado":
     st.info("📋 Lembre-se de upar o relatório de performance mais recente do cliente para melhorar as copies.")
 
-    db_clients = load_clients()
-    session_clients = [c for c in st.session_state.pending_clients
-                       if not any(d["name"] == c["name"] for d in db_clients)]
-    all_clients = db_clients + session_clients
+    all_clients = load_clients()
 
     if all_clients:
         names = [c["name"] for c in all_clients]
@@ -259,7 +254,7 @@ if modo == "Cliente cadastrado":
                               label_visibility="collapsed", key="chosen_client")
         selected_client = next((c for c in all_clients if c["name"] == chosen), None)
     else:
-        st.info("Nenhum cliente cadastrado ainda. Selecione '＋ Novo cliente' para cadastrar.")
+        st.info("Nenhum cliente cadastrado. Acesse **Gerenciar Clientes** no hub para cadastrar.")
 
     if selected_client:
         has_tov = bool(selected_client.get("tone_of_voice", "").strip())
@@ -283,10 +278,6 @@ if modo == "Cliente cadastrado":
             with col_yes:
                 if st.button("✅ Sim, excluir", key="btn_confirm_delete", use_container_width=True):
                     ok, msg = delete_client(selected_client["name"])
-                    st.session_state.pending_clients = [
-                        c for c in st.session_state.pending_clients
-                        if c["name"] != selected_client["name"]
-                    ]
                     st.session_state["confirm_delete"] = None
                     if ok:
                         st.success(f"Cliente '{selected_client['name']}' excluído.")
@@ -321,87 +312,9 @@ if modo == "Cliente cadastrado":
                     ok, msg = save_client(updated)
                     if ok:
                         st.success("✅ Relatório salvo com sucesso!")
-                        st.session_state.pending_clients = [
-                            updated if c["name"] == updated["name"] else c
-                            for c in st.session_state.pending_clients
-                        ]
                         st.rerun()
                     else:
                         st.error(msg)
-
-# ── Formulário de cadastro ─────────────────────────────────────────────────────
-if modo == "＋ Novo cliente":
-    st.info("📋 Lembre-se de upar o relatório de performance mais recente do cliente para melhorar as copies.")
-if st.session_state.show_registration or modo == "＋ Novo cliente":
-    with st.expander("Cadastrar novo cliente", expanded=True, icon="➕"):
-        new_name = st.text_input("Nome do cliente", key="reg_name",
-                                 placeholder="Ex: Questão de Texto")
-
-        competitors = st.text_input(
-            "Páginas concorrentes no Facebook (opcional)",
-            key="reg_competitors",
-            placeholder="Ex: Página Concorrente 1, Página Concorrente 2",
-        )
-
-        reg_col1, reg_col2 = st.columns(2)
-        with reg_col1:
-            st.markdown("**Tom de voz** *(opcional)*")
-            tov_file = st.file_uploader("Arquivo de tom de voz (PDF ou TXT)",
-                                        type=["pdf", "txt"], key="reg_file",
-                                        label_visibility="collapsed")
-            tov_manual = st.text_area(
-                "Ou cole o guia de tom de voz aqui",
-                height=90, key="reg_manual",
-                placeholder="Descreva como a marca fala: palavras que usa, tom, o que evita, exemplos de frases...",
-                label_visibility="collapsed",
-            )
-        with reg_col2:
-            st.markdown("**Relatório de performance** *(opcional)*")
-            report_file_reg = st.file_uploader("Relatório de performance (PDF ou TXT)",
-                                               type=["pdf", "txt"], key="reg_report",
-                                               label_visibility="collapsed")
-            report_manual_reg = st.text_area(
-                "Ou cole os dados do relatório aqui",
-                height=90, key="reg_report_manual",
-                placeholder="Cole métricas, observações ou insights do período...",
-                label_visibility="collapsed",
-            )
-
-        col_save, col_cancel = st.columns([2, 1])
-        with col_save:
-            if st.button("Salvar cliente", use_container_width=True, key="btn_save_client"):
-                if not new_name.strip():
-                    st.error("Informe o nome do cliente.")
-                else:
-                    tov_content = ""
-                    if tov_file:
-                        tov_content = extract_text(tov_file)
-                    elif tov_manual.strip():
-                        tov_content = tov_manual.strip()
-
-                    report_content = ""
-                    if report_file_reg:
-                        report_content = extract_text(report_file_reg)
-                    elif report_manual_reg.strip():
-                        report_content = report_manual_reg.strip()
-
-                    # Concatena tom de voz + relatório no mesmo campo
-                    combined = "\n\n---\n\n".join(filter(None, [tov_content, report_content]))
-
-                    new_client = {"name": new_name.strip(), "tone_of_voice": combined, "competitors": competitors.strip()}
-                    ok, msg = save_client(new_client)
-                    if ok:
-                        st.success(msg)
-                        st.session_state.pending_clients.append(new_client)
-                        st.session_state.show_registration = False
-                        st.rerun()
-                    else:
-                        st.error(msg)
-        with col_cancel:
-            if st.button("Cancelar", use_container_width=True, key="btn_cancel"):
-                st.session_state.show_registration = False
-                st.session_state.modo = "Cliente cadastrado"
-                st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
 
