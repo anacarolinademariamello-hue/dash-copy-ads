@@ -246,6 +246,9 @@ modo = st.radio("", ["Consulta avulsa", "Cliente cadastrado"],
 selected_client = None
 
 if modo == "Cliente cadastrado":
+    # Aviso sempre visível no modo cliente cadastrado
+    st.info("📋 Lembre-se de upar o relatório de performance mais recente do cliente para melhorar as copies.")
+
     # Mescla clientes do GitHub com os adicionados nessa sessão
     db_clients = load_clients()
     session_clients = [c for c in st.session_state.pending_clients
@@ -276,7 +279,42 @@ if modo == "Cliente cadastrado":
             f'font-weight:700;padding:4px 12px;border-radius:20px;">{badge}</span>',
             unsafe_allow_html=True,
         )
-        st.info("📋 Lembre-se de upar o relatório de performance mais recente deste cliente para melhorar as copies.")
+
+        # Uploader de relatório para cliente já cadastrado
+        with st.expander("📤 Upar relatório deste cliente"):
+            report_file = st.file_uploader(
+                "Relatório de performance (PDF ou TXT)",
+                type=["pdf", "txt"],
+                key="report_upload",
+            )
+            report_manual = st.text_area(
+                "Ou cole os dados do relatório aqui",
+                height=80,
+                key="report_manual",
+                placeholder="Cole métricas, observações ou insights do período..."
+            )
+            if st.button("💾 Salvar relatório", use_container_width=True, key="btn_save_report"):
+                new_tov = ""
+                if report_file:
+                    new_tov = extract_text(report_file)
+                elif report_manual.strip():
+                    new_tov = report_manual.strip()
+
+                if not new_tov:
+                    st.warning("Selecione um arquivo ou cole o conteúdo do relatório.")
+                else:
+                    updated = {**selected_client, "tone_of_voice": new_tov}
+                    ok, msg = save_client(updated)
+                    if ok:
+                        st.success("✅ Relatório salvo com sucesso!")
+                        # Atualiza na lista local da sessão também
+                        st.session_state.pending_clients = [
+                            updated if c["name"] == updated["name"] else c
+                            for c in st.session_state.pending_clients
+                        ]
+                        st.rerun()
+                    else:
+                        st.error(msg)
 
 # ── Formulário de cadastro ─────────────────────────────────────────────────────
 if st.session_state.show_registration:
