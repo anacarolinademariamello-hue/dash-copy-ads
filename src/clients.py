@@ -7,6 +7,64 @@ REPO = "anacarolinademariamello-hue/dash-copy-ads"
 FILE_PATH = "clients.json"
 
 
+# ── Supabase (fonte primária) ─────────────────────────────────────────────────
+
+def _supabase_creds() -> tuple[str, str]:
+    try:
+        url = st.secrets.get("supabase_url", "") or ""
+        key = st.secrets.get("supabase_service_key", "") or ""
+        return url, key
+    except Exception:
+        return "", ""
+
+
+def _supabase_configured() -> bool:
+    url, key = _supabase_creds()
+    return bool(url and key)
+
+
+def _supabase_headers() -> dict:
+    _, key = _supabase_creds()
+    return {
+        "apikey":        key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type":  "application/json",
+        "Prefer":        "return=representation",
+    }
+
+
+@st.cache_data(ttl=120)
+def _load_from_supabase() -> list[dict]:
+    """Carrega clientes ativos do Supabase no formato copy-ads."""
+    if not _supabase_configured():
+        return []
+    url, _ = _supabase_creds()
+    try:
+        resp = requests.get(
+            f"{url}/rest/v1/clients",
+            headers=_supabase_headers(),
+            params={
+                "active": "eq.true",
+                "order":  "name.asc",
+                "select": "key,name,handle,tone_of_voice,competitors",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        rows = resp.json()
+        return [
+            {
+                "name":          r["name"],
+                "tone_of_voice": r.get("tone_of_voice") or "",
+                "competitors":   r.get("competitors") or "",
+                "_source":       "supabase",
+            }
+            for r in rows
+        ]
+    except Exception:
+        return []
+
+
 def _gh_headers() -> dict:
     token = ""
     try:
@@ -21,7 +79,16 @@ def _gh_headers() -> dict:
 
 @st.cache_data(ttl=120)
 def load_clients() -> list[dict]:
-    """Lê clientes do GitHub API (primário) ou arquivo local (fallback)."""
+    """
+    Carrega clientes — Supabase primeiro (fonte principal), depois GitHub JSON (fallback).
+    Clientes do Supabase e do JSON são mesclados sem duplicatas por nome.
+    """
+    # 1. Tenta Supabase (fonte principal)
+    supabase_clients = _load_from_supabase()
+    if supabase_clients:
+        return supabase_clients
+
+    # 2. Fallback: GitHub API
     try:
         url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
         resp = requests.get(url, headers=_gh_headers(), timeout=8)
@@ -31,6 +98,7 @@ def load_clients() -> list[dict]:
     except Exception:
         pass
 
+    # 3. Fallback: arquivo local
     try:
         with open(FILE_PATH, "r", encoding="utf-8") as f:
             return json.load(f).get("clients", [])
