@@ -328,13 +328,8 @@ if modo == "Cliente cadastrado":
 # ── Formulário de cadastro ─────────────────────────────────────────────────────
 if st.session_state.show_registration:
     with st.expander("Cadastrar novo cliente", expanded=True, icon="➕"):
-        reg_col1, reg_col2 = st.columns(2)
-        with reg_col1:
-            new_name = st.text_input("Nome do cliente", key="reg_name",
-                                     placeholder="Ex: Questão de Texto")
-        with reg_col2:
-            tov_file = st.file_uploader("Arquivo de tom de voz (PDF ou TXT)",
-                                        type=["pdf", "txt"], key="reg_file")
+        new_name = st.text_input("Nome do cliente", key="reg_name",
+                                 placeholder="Ex: Questão de Texto")
 
         competitors = st.text_input(
             "Páginas concorrentes no Facebook (opcional)",
@@ -342,11 +337,29 @@ if st.session_state.show_registration:
             placeholder="Ex: Página Concorrente 1, Página Concorrente 2",
         )
 
-        tov_manual = st.text_area(
-            "Ou cole o guia de tom de voz aqui",
-            height=100, key="reg_manual",
-            placeholder="Descreva como a marca fala: palavras que usa, tom, o que evita, exemplos de frases..."
-        )
+        reg_col1, reg_col2 = st.columns(2)
+        with reg_col1:
+            st.markdown("**Tom de voz** *(opcional)*")
+            tov_file = st.file_uploader("Arquivo de tom de voz (PDF ou TXT)",
+                                        type=["pdf", "txt"], key="reg_file",
+                                        label_visibility="collapsed")
+            tov_manual = st.text_area(
+                "Ou cole o guia de tom de voz aqui",
+                height=90, key="reg_manual",
+                placeholder="Descreva como a marca fala: palavras que usa, tom, o que evita, exemplos de frases...",
+                label_visibility="collapsed",
+            )
+        with reg_col2:
+            st.markdown("**Relatório de performance** *(opcional)*")
+            report_file_reg = st.file_uploader("Relatório de performance (PDF ou TXT)",
+                                               type=["pdf", "txt"], key="reg_report",
+                                               label_visibility="collapsed")
+            report_manual_reg = st.text_area(
+                "Ou cole os dados do relatório aqui",
+                height=90, key="reg_report_manual",
+                placeholder="Cole métricas, observações ou insights do período...",
+                label_visibility="collapsed",
+            )
 
         col_save, col_cancel = st.columns([2, 1])
         with col_save:
@@ -360,7 +373,16 @@ if st.session_state.show_registration:
                     elif tov_manual.strip():
                         tov_content = tov_manual.strip()
 
-                    new_client = {"name": new_name.strip(), "tone_of_voice": tov_content, "competitors": competitors.strip()}
+                    report_content = ""
+                    if report_file_reg:
+                        report_content = extract_text(report_file_reg)
+                    elif report_manual_reg.strip():
+                        report_content = report_manual_reg.strip()
+
+                    # Concatena tom de voz + relatório no mesmo campo
+                    combined = "\n\n---\n\n".join(filter(None, [tov_content, report_content]))
+
+                    new_client = {"name": new_name.strip(), "tone_of_voice": combined, "competitors": competitors.strip()}
                     ok, msg = save_client(new_client)
                     if ok:
                         st.success(msg)
