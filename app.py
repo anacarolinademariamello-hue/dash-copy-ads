@@ -266,11 +266,38 @@ if modo == "Cliente cadastrado":
         badge = "Tom de voz carregado" if has_tov else "Sem tom de voz"
         color = "#d1fae5" if has_tov else "#fef3c7"
         text_color = "#065f46" if has_tov else "#92400e"
-        st.markdown(
-            f'<span style="background:{color};color:{text_color};font-size:.75rem;'
-            f'font-weight:700;padding:4px 12px;border-radius:20px;">{badge}</span>',
-            unsafe_allow_html=True,
-        )
+        col_badge, col_del = st.columns([5, 1])
+        with col_badge:
+            st.markdown(
+                f'<span style="background:{color};color:{text_color};font-size:.75rem;'
+                f'font-weight:700;padding:4px 12px;border-radius:20px;">{badge}</span>',
+                unsafe_allow_html=True,
+            )
+        with col_del:
+            if st.button("🗑️ Excluir", key="btn_delete_client", use_container_width=True):
+                st.session_state["confirm_delete"] = selected_client["name"]
+
+        if st.session_state.get("confirm_delete") == selected_client["name"]:
+            st.warning(f"Tem certeza que deseja excluir **{selected_client['name']}**? Esta ação não pode ser desfeita.")
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("✅ Sim, excluir", key="btn_confirm_delete", use_container_width=True):
+                    ok, msg = delete_client(selected_client["name"])
+                    st.session_state.pending_clients = [
+                        c for c in st.session_state.pending_clients
+                        if c["name"] != selected_client["name"]
+                    ]
+                    st.session_state["confirm_delete"] = None
+                    if ok:
+                        st.success(f"Cliente '{selected_client['name']}' excluído.")
+                    else:
+                        st.error(msg)
+                    st.rerun()
+            with col_no:
+                if st.button("Cancelar", key="btn_cancel_delete", use_container_width=True):
+                    st.session_state["confirm_delete"] = None
+                    st.rerun()
+
         with st.expander("📤 Upar relatório deste cliente"):
             report_file = st.file_uploader(
                 "Relatório de performance (PDF ou TXT)",
