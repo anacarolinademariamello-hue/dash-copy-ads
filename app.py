@@ -1,4 +1,5 @@
 import streamlit as st
+import base64
 
 from src.niches import NICHES, OBJECTIVES, TONES, CTAS
 from src.copy_gen import generate_copies, COPY_TYPES, CRIATIVO_LABELS
@@ -23,6 +24,14 @@ st.markdown(
     f"<style>{get_sidebar_css()}{get_main_css()}</style>",
     unsafe_allow_html=True,
 )
+
+
+def get_logo_base64():
+    try:
+        with open("assets/logo.png", "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return ""
 
 
 # ── HTML de download ───────────────────────────────────────────────────────────
@@ -54,6 +63,15 @@ def _build_download_html(copies: list, fd: dict) -> str:
             <div class="cta-box" style="background:{cor_bg};color:{cor}">{cta_text}</div>
             <div class="slabel" style="margin-top:18px;padding-top:14px;border-top:1px solid #eef1f6;">{criativo_label}</div>
             <div class="criativo-box">{criativo}</div>
+          </div>
+          <div class="approval-box">
+            <div class="approval-label">Feedback do cliente</div>
+            <div class="approval-options">
+              <label><input type="radio" name="approval_{i}"> Aprovado</label>
+              <label><input type="radio" name="approval_{i}"> Requer ajuste</label>
+              <label><input type="radio" name="approval_{i}"> Reprovado</label>
+            </div>
+            <div class="approval-note">Observações: _______________________________________________</div>
           </div>
         </div>"""
 
@@ -87,6 +105,11 @@ def _build_download_html(copies: list, fd: dict) -> str:
   .body-text{{font-size:.92rem;color:#374151;line-height:1.7;margin-bottom:14px}}
   .cta-box{{display:inline-block;padding:7px 18px;border-radius:8px;font-size:.88rem;font-weight:700;margin-bottom:4px}}
   .criativo-box{{background:#f8fafc;border:1px solid #e5e9f0;border-radius:8px;padding:12px 14px;font-size:.9rem;color:#374151;line-height:1.65}}
+  .approval-box{{background:#f8fafc;border:1px dashed #dde3ed;border-radius:10px;padding:14px 18px;margin-top:8px}}
+  .approval-label{{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:8px}}
+  .approval-options{{display:flex;gap:20px;font-size:.85rem;color:#374151;margin-bottom:8px}}
+  .approval-options label{{display:flex;align-items:center;gap:6px;cursor:pointer}}
+  .approval-note{{font-size:.82rem;color:#9ca3af;padding-top:8px;border-top:1px solid #e5e9f0}}
   .pf{{text-align:center;margin-top:32px;font-size:.78rem;color:#9ca3af}}
 </style>
 </head>
@@ -118,7 +141,16 @@ for key, default in [
 
 # ── SIDEBAR — copies ───────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("""
+    _logo_b64 = get_logo_base64()
+    if _logo_b64:
+        st.markdown(
+            f'<div class="sb-brand"><img src="data:image/png;base64,{_logo_b64}" '
+            f'style="height:38px;border-radius:8px;background:white;padding:3px 10px;"></div>'
+            f'<hr class="sb-divider">',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown("""
     <div class="sb-brand">
       <span class="sb-icon">✍️</span>
       <div>
@@ -145,6 +177,39 @@ with st.sidebar:
                 st.markdown(f'<div class="copy-block-label">{criativo_label}</div>', unsafe_allow_html=True)
                 st.text_area("cri", value=copy.get("criativo", ""),
                              height=110, label_visibility="collapsed", key=f"cri_{i}")
+
+                col_ap1, col_ap2, col_ap3 = st.columns(3)
+                status_key = f"approval_{i}"
+                if status_key not in st.session_state:
+                    st.session_state[status_key] = None
+
+                with col_ap1:
+                    if st.button("✅ Aprovar", key=f"btn_aprove_{i}", use_container_width=True):
+                        st.session_state[status_key] = "aprovada"
+                with col_ap2:
+                    if st.button("🧪 Testar", key=f"btn_test_{i}", use_container_width=True):
+                        st.session_state[status_key] = "em teste"
+                with col_ap3:
+                    if st.button("❌ Rejeitar", key=f"btn_reject_{i}", use_container_width=True):
+                        st.session_state[status_key] = "rejeitada"
+
+                status = st.session_state.get(status_key)
+                if status:
+                    color_map = {"aprovada": "#d1fae5", "em teste": "#fef3c7", "rejeitada": "#fee2e2"}
+                    text_map = {"aprovada": "#065f46", "em teste": "#92400e", "rejeitada": "#991b1b"}
+                    st.markdown(
+                        f'<div style="background:{color_map[status]};color:{text_map[status]};'
+                        f'font-size:.75rem;font-weight:700;padding:4px 12px;border-radius:8px;'
+                        f'text-align:center;margin-top:4px;">Status: {status.upper()}</div>',
+                        unsafe_allow_html=True,
+                    )
+
+            score = copy.get("hook_score", "")
+            if score:
+                st.markdown(
+                    f'<div style="font-size:.72rem;color:rgba(255,255,255,.55);margin-top:2px;">🎯 Hook: {score}</div>',
+                    unsafe_allow_html=True,
+                )
 
         st.markdown('<hr class="sb-divider">', unsafe_allow_html=True)
 
@@ -211,6 +276,7 @@ if modo == "Cliente cadastrado":
             f'font-weight:700;padding:4px 12px;border-radius:20px;">{badge}</span>',
             unsafe_allow_html=True,
         )
+        st.info("📋 Lembre-se de upar o relatório de performance mais recente deste cliente para melhorar as copies.")
 
 # ── Formulário de cadastro ─────────────────────────────────────────────────────
 if st.session_state.show_registration:
@@ -222,6 +288,12 @@ if st.session_state.show_registration:
         with reg_col2:
             tov_file = st.file_uploader("Arquivo de tom de voz (PDF ou TXT)",
                                         type=["pdf", "txt"], key="reg_file")
+
+        competitors = st.text_input(
+            "Páginas concorrentes no Facebook (opcional)",
+            key="reg_competitors",
+            placeholder="Ex: Página Concorrente 1, Página Concorrente 2",
+        )
 
         tov_manual = st.text_area(
             "Ou cole o guia de tom de voz aqui",
@@ -241,7 +313,7 @@ if st.session_state.show_registration:
                     elif tov_manual.strip():
                         tov_content = tov_manual.strip()
 
-                    new_client = {"name": new_name.strip(), "tone_of_voice": tov_content}
+                    new_client = {"name": new_name.strip(), "tone_of_voice": tov_content, "competitors": competitors.strip()}
                     ok, msg = save_client(new_client)
                     if ok:
                         st.success(msg)
@@ -340,6 +412,12 @@ extra_keywords = st.text_input(
     key="extra_keywords",
 )
 
+sazonalidade = st.text_input(
+    "Sazonalidade / Contexto de data (opcional)",
+    placeholder="Ex: Black Friday, Volta às aulas, Dia das Mães, Carnaval...",
+    key="sazonalidade",
+)
+
 st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -404,6 +482,7 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                     "tone": tone,
                     "cta": cta,
                     "extra_keywords": extra_keywords.strip(),
+                    "sazonalidade": sazonalidade.strip(),
                     "tipo_criativo": tipo_criativo,
                     "criativo_estrutura": criativo_estrutura.strip(),
                     "referencias": referencias.strip(),
@@ -420,6 +499,6 @@ if st.button("Gerar 5 Copies", use_container_width=True):
 
 st.markdown(
     '<p style="text-align:center;font-size:.72rem;color:#9ca3af;margin-top:16px;">'
-    "Powered by Claude AI · Dash Digital</p>",
+    "Desenvolvido por Dash Digital · @dashdgt · Todos os direitos reservados</p>",
     unsafe_allow_html=True,
 )

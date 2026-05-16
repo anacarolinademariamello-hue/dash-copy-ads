@@ -75,6 +75,7 @@ def _build_prompt(form: dict) -> str:
     offer_line = f"\n- Oferta/Preço: {form['offer']}" if form.get("offer") else ""
     usp_line = f"\n- Diferencial/USP: {form['usp']}" if form.get("usp") else ""
     kw_line = f"\n- Palavras-chave/Diferenciais: {form['extra_keywords']}" if form.get("extra_keywords") else ""
+    saz_line = f"\n- Sazonalidade/Contexto: {form['sazonalidade']}" if form.get("sazonalidade") else ""
     client_line = f"\n- Cliente: {form['client_name']}" if form.get("client_name") else ""
     ref_line = (
         f"\n\n## REFERÊNCIAS DE COPY (tom e estilo para se inspirar, não copiar)\n{form['referencias']}"
@@ -121,7 +122,7 @@ def _build_prompt(form: dict) -> str:
 - **Principal Desejo:** {form['desire']}{usp_line}{offer_line}{client_line}
 - **Objetivo:** {form['objective']} — {form['objective_desc']}
 - **Tom de Voz:** {form['tone']}
-- **CTA Desejado:** {form['cta']}{kw_line}{tov_line}
+- **CTA Desejado:** {form['cta']}{kw_line}{saz_line}{tov_line}
 
 ## TIPO DE CRIATIVO: {tipo}
 
@@ -181,6 +182,8 @@ Para cada variação, entregue DOIS blocos:
 
 Use EXCLUSIVAMENTE o formato XML abaixo. Não use JSON. Não adicione nenhum texto fora das tags XML.
 
+Para cada copy, inclua a tag <hook_score> com uma pontuação de 1 a 10 seguida de uma justificativa de 1 linha explicando a força do hook (ex: "8/10 — cria identificação imediata com a dor sem ser genérico").
+
 <copies>
 <copy>
 <tipo_id>dor</tipo_id>
@@ -190,6 +193,7 @@ Use EXCLUSIVAMENTE o formato XML abaixo. Não use JSON. Não adicione nenhum tex
 <legenda_cta>chamada para ação</legenda_cta>
 <legenda_completa>legenda inteira formatada, pronta para colar no Meta Ads</legenda_completa>
 <criativo>texto exato para o criativo conforme estrutura descrita</criativo>
+<hook_score>pontuação de 1 a 10 com justificativa de 1 linha</hook_score>
 </copy>
 <copy>
 <tipo_id>beneficio</tipo_id>
@@ -199,6 +203,7 @@ Use EXCLUSIVAMENTE o formato XML abaixo. Não use JSON. Não adicione nenhum tex
 <legenda_cta>...</legenda_cta>
 <legenda_completa>...</legenda_completa>
 <criativo>...</criativo>
+<hook_score>...</hook_score>
 </copy>
 <copy>
 <tipo_id>prova</tipo_id>
@@ -208,6 +213,7 @@ Use EXCLUSIVAMENTE o formato XML abaixo. Não use JSON. Não adicione nenhum tex
 <legenda_cta>...</legenda_cta>
 <legenda_completa>...</legenda_completa>
 <criativo>...</criativo>
+<hook_score>...</hook_score>
 </copy>
 <copy>
 <tipo_id>urgencia</tipo_id>
@@ -216,8 +222,8 @@ Use EXCLUSIVAMENTE o formato XML abaixo. Não use JSON. Não adicione nenhum tex
 <legenda_corpo>...</legenda_corpo>
 <legenda_cta>...</legenda_cta>
 <legenda_completa>...</legenda_completa>
-      "criativo": "..."
-    <criativo>...</criativo>
+<criativo>...</criativo>
+<hook_score>...</hook_score>
 </copy>
 <copy>
 <tipo_id>story</tipo_id>
@@ -227,6 +233,7 @@ Use EXCLUSIVAMENTE o formato XML abaixo. Não use JSON. Não adicione nenhum tex
 <legenda_cta>...</legenda_cta>
 <legenda_completa>...</legenda_completa>
 <criativo>...</criativo>
+<hook_score>...</hook_score>
 </copy>
 </copies>"""
 
@@ -250,6 +257,7 @@ def _parse_xml_response(raw: str) -> list[dict]:
             "legenda_cta":     _extract_tag(block, "legenda_cta"),
             "legenda_completa": _extract_tag(block, "legenda_completa"),
             "criativo":        _extract_tag(block, "criativo"),
+            "hook_score":      _extract_tag(block, "hook_score"),
         })
     return copies
 
