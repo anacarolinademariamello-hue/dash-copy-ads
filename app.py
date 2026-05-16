@@ -243,6 +243,10 @@ st.markdown('<div class="client-section"><div class="form-section-title">Modo de
 modo = st.radio("", ["Consulta avulsa", "Cliente cadastrado"],
                 horizontal=True, label_visibility="collapsed", key="modo")
 
+# Reseta o formulário de cadastro ao trocar de modo
+if modo == "Consulta avulsa" and st.session_state.get("show_registration"):
+    st.session_state.show_registration = False
+
 selected_client = None
 
 if modo == "Cliente cadastrado":
