@@ -240,97 +240,72 @@ st.markdown(get_page_header_html(), unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div class="client-section"><div class="form-section-title">Modo de uso</div>', unsafe_allow_html=True)
 
-modo = st.radio("", ["Consulta avulsa", "Cliente cadastrado"],
+modo = st.radio("", ["Consulta avulsa", "Cliente cadastrado", "＋ Novo cliente"],
                 horizontal=True, label_visibility="collapsed", key="modo")
-
-# Reseta o formulário de cadastro ao trocar de modo
-if modo == "Consulta avulsa" and st.session_state.get("show_registration"):
-    st.session_state.show_registration = False
 
 selected_client = None
 
 if modo == "Cliente cadastrado":
-    # Aviso sempre visível no modo cliente cadastrado
     st.info("📋 Lembre-se de upar o relatório de performance mais recente do cliente para melhorar as copies.")
 
-    # Mescla clientes do GitHub com os adicionados nessa sessão
     db_clients = load_clients()
     session_clients = [c for c in st.session_state.pending_clients
                        if not any(d["name"] == c["name"] for d in db_clients)]
     all_clients = db_clients + session_clients
 
-    if not st.session_state.show_registration:
-        # ── Modo seleção de cliente ──
-        col_sel, col_new = st.columns([3, 1])
-        with col_sel:
-            if all_clients:
-                names = [c["name"] for c in all_clients]
-                chosen = st.selectbox("Selecionar cliente", names,
-                                      label_visibility="collapsed", key="chosen_client")
-                selected_client = next((c for c in all_clients if c["name"] == chosen), None)
-            else:
-                st.info("Nenhum cliente cadastrado ainda. Clique em '+ Novo cliente' para cadastrar.")
-
-        with col_new:
-            if st.button("+ Novo cliente", use_container_width=True):
-                st.session_state.show_registration = True
-                st.rerun()
-
-        if selected_client:
-            has_tov = bool(selected_client.get("tone_of_voice", "").strip())
-            badge = "Tom de voz carregado" if has_tov else "Sem tom de voz"
-            color = "#d1fae5" if has_tov else "#fef3c7"
-            text_color = "#065f46" if has_tov else "#92400e"
-            st.markdown(
-                f'<span style="background:{color};color:{text_color};font-size:.75rem;'
-                f'font-weight:700;padding:4px 12px;border-radius:20px;">{badge}</span>',
-                unsafe_allow_html=True,
-            )
-
-            # Uploader de relatório para cliente já cadastrado
-            with st.expander("📤 Upar relatório deste cliente"):
-                report_file = st.file_uploader(
-                    "Relatório de performance (PDF ou TXT)",
-                    type=["pdf", "txt"],
-                    key="report_upload",
-                )
-                report_manual = st.text_area(
-                    "Ou cole os dados do relatório aqui",
-                    height=80,
-                    key="report_manual",
-                    placeholder="Cole métricas, observações ou insights do período..."
-                )
-                if st.button("💾 Salvar relatório", use_container_width=True, key="btn_save_report"):
-                    new_tov = ""
-                    if report_file:
-                        new_tov = extract_text(report_file)
-                    elif report_manual.strip():
-                        new_tov = report_manual.strip()
-
-                    if not new_tov:
-                        st.warning("Selecione um arquivo ou cole o conteúdo do relatório.")
-                    else:
-                        updated = {**selected_client, "tone_of_voice": new_tov}
-                        ok, msg = save_client(updated)
-                        if ok:
-                            st.success("✅ Relatório salvo com sucesso!")
-                            st.session_state.pending_clients = [
-                                updated if c["name"] == updated["name"] else c
-                                for c in st.session_state.pending_clients
-                            ]
-                            st.rerun()
-                        else:
-                            st.error(msg)
+    if all_clients:
+        names = [c["name"] for c in all_clients]
+        chosen = st.selectbox("Selecionar cliente", names,
+                              label_visibility="collapsed", key="chosen_client")
+        selected_client = next((c for c in all_clients if c["name"] == chosen), None)
     else:
-        # ── Modo cadastro: esconde seletor ──
+        st.info("Nenhum cliente cadastrado ainda. Selecione '＋ Novo cliente' para cadastrar.")
+
+    if selected_client:
+        has_tov = bool(selected_client.get("tone_of_voice", "").strip())
+        badge = "Tom de voz carregado" if has_tov else "Sem tom de voz"
+        color = "#d1fae5" if has_tov else "#fef3c7"
+        text_color = "#065f46" if has_tov else "#92400e"
         st.markdown(
-            '<div style="font-size:.85rem;color:#6b7280;margin-bottom:8px;">'
-            '➕ Cadastrando novo cliente</div>',
+            f'<span style="background:{color};color:{text_color};font-size:.75rem;'
+            f'font-weight:700;padding:4px 12px;border-radius:20px;">{badge}</span>',
             unsafe_allow_html=True,
         )
+        with st.expander("📤 Upar relatório deste cliente"):
+            report_file = st.file_uploader(
+                "Relatório de performance (PDF ou TXT)",
+                type=["pdf", "txt"], key="report_upload",
+            )
+            report_manual = st.text_area(
+                "Ou cole os dados do relatório aqui",
+                height=80, key="report_manual",
+                placeholder="Cole métricas, observações ou insights do período..."
+            )
+            if st.button("💾 Salvar relatório", use_container_width=True, key="btn_save_report"):
+                new_tov = ""
+                if report_file:
+                    new_tov = extract_text(report_file)
+                elif report_manual.strip():
+                    new_tov = report_manual.strip()
+                if not new_tov:
+                    st.warning("Selecione um arquivo ou cole o conteúdo do relatório.")
+                else:
+                    updated = {**selected_client, "tone_of_voice": new_tov}
+                    ok, msg = save_client(updated)
+                    if ok:
+                        st.success("✅ Relatório salvo com sucesso!")
+                        st.session_state.pending_clients = [
+                            updated if c["name"] == updated["name"] else c
+                            for c in st.session_state.pending_clients
+                        ]
+                        st.rerun()
+                    else:
+                        st.error(msg)
 
 # ── Formulário de cadastro ─────────────────────────────────────────────────────
-if st.session_state.show_registration:
+if modo == "＋ Novo cliente":
+    st.info("📋 Lembre-se de upar o relatório de performance mais recente do cliente para melhorar as copies.")
+if st.session_state.show_registration or modo == "＋ Novo cliente":
     with st.expander("Cadastrar novo cliente", expanded=True, icon="➕"):
         new_name = st.text_input("Nome do cliente", key="reg_name",
                                  placeholder="Ex: Questão de Texto")
@@ -398,6 +373,7 @@ if st.session_state.show_registration:
         with col_cancel:
             if st.button("Cancelar", use_container_width=True, key="btn_cancel"):
                 st.session_state.show_registration = False
+                st.session_state.modo = "Cliente cadastrado"
                 st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
