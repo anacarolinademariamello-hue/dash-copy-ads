@@ -1,9 +1,3 @@
 {
-  "clients": [
-    {
-      "name": "Teste",
-      "tone_of_voice": "wdffgrg",
-      "competitors": "sdhfesh"
-    }
-  ]
+  "clients": []
 }
