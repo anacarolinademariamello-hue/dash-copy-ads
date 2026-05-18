@@ -86,6 +86,79 @@ def _build_prompt(form: dict) -> str:
         if form.get("client_tone_of_voice") else ""
     )
 
+    # ── Perfil completo do cliente ────────────────────────────────────────────
+    client_profile_parts = []
+    if form.get("client_bio"):
+        client_profile_parts.append(f"- Descrição: {form['client_bio']}")
+    if form.get("client_tags"):
+        tags = form["client_tags"]
+        if isinstance(tags, list):
+            tags = ", ".join(tags)
+        client_profile_parts.append(f"- Áreas de atuação: {tags}")
+    if form.get("client_competitors"):
+        client_profile_parts.append(f"- Concorrentes: {form['client_competitors']}")
+    if form.get("client_observations"):
+        client_profile_parts.append(f"- Observações importantes: {form['client_observations']}")
+    if form.get("client_goals"):
+        goals = form["client_goals"]
+        goal_lines = []
+        labels = {
+            "custo_por_seguidor":    "Custo máx. por seguidor",
+            "custo_por_venda":       "Custo máx. por venda",
+            "cpa_maximo":            "CPA máximo",
+            "ctr_minimo":            "CTR mínimo",
+            "cpm_maximo":            "CPM máximo",
+            "cpc_maximo":            "CPC máximo",
+            "roas_minimo":           "ROAS mínimo",
+            "taxa_conversao_minima": "Taxa de conversão mínima",
+        }
+        for k, v in goals.items():
+            if v:
+                goal_lines.append(f"  • {labels.get(k, k)}: {v}")
+        if goal_lines:
+            client_profile_parts.append("- Metas de performance:\n" + "\n".join(goal_lines))
+
+    client_profile_line = (
+        f"\n\n## PERFIL DO CLIENTE\n" + "\n".join(client_profile_parts)
+        if client_profile_parts else ""
+    )
+
+    # ── Copies aprovadas — exemplos do que funciona ───────────────────────────
+    approved_copies = form.get("client_approved_copies", [])
+    approved_line = ""
+    if approved_copies:
+        examples = []
+        for c in approved_copies[:5]:  # máximo 5 exemplos
+            hook = c.get("legenda_hook", "").strip()
+            corpo = c.get("legenda_corpo", "").strip()
+            tipo = c.get("tipo_nome", "")
+            if hook:
+                examples.append(f"[{tipo}]\nHook: {hook}\nCorpo: {corpo[:200]}{'...' if len(corpo) > 200 else ''}")
+        if examples:
+            approved_line = (
+                "\n\n## COPIES QUE FUNCIONARAM PARA ESTE CLIENTE — USE COMO REFERÊNCIA DE ESTILO E TOM\n"
+                "Estas copies foram aprovadas anteriormente. Analise o padrão de linguagem, ritmo e abordagem.\n\n"
+                + "\n\n".join(examples)
+            )
+
+    # ── Copies rejeitadas — o que evitar ─────────────────────────────────────
+    rejected_copies = form.get("client_rejected_copies", [])
+    rejected_line = ""
+    if rejected_copies:
+        examples = []
+        for c in rejected_copies[:5]:  # máximo 5 exemplos
+            hook = c.get("legenda_hook", "").strip()
+            reason = c.get("reason", "").strip()
+            tipo = c.get("tipo_nome", "")
+            if hook and reason:
+                examples.append(f"[{tipo}]\nHook rejeitado: {hook}\nMotivo: {reason}")
+        if examples:
+            rejected_line = (
+                "\n\n## COPIES REJEITADAS — EVITE ESTES PADRÕES\n"
+                "Estas copies foram reprovadas. Entenda os motivos e não repita os mesmos erros.\n\n"
+                + "\n\n".join(examples)
+            )
+
     tipo = form.get("tipo_criativo", "Card (imagem)")
     criativo_instrucao = {
         "Vídeo": (
@@ -122,7 +195,7 @@ def _build_prompt(form: dict) -> str:
 - **Principal Desejo:** {form['desire']}{usp_line}{offer_line}{client_line}
 - **Objetivo:** {form['objective']} — {form['objective_desc']}
 - **Tom de Voz:** {form['tone']}
-- **CTA Desejado:** {form['cta']}{kw_line}{saz_line}{tov_line}
+- **CTA Desejado:** {form['cta']}{kw_line}{saz_line}{client_profile_line}{tov_line}{approved_line}{rejected_line}
 
 ## TIPO DE CRIATIVO: {tipo}
 

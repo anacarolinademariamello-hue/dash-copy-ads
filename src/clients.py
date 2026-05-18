@@ -46,7 +46,7 @@ def _load_from_supabase() -> list[dict]:
             params={
                 "active": "eq.true",
                 "order":  "name.asc",
-                "select": "key,name,handle,tone_of_voice,competitors",
+                "select": "key,name,handle,tone_of_voice,competitors,bio,tags,observations,goals",
             },
             timeout=10,
         )
@@ -57,6 +57,10 @@ def _load_from_supabase() -> list[dict]:
                 "name":          r["name"],
                 "tone_of_voice": r.get("tone_of_voice") or "",
                 "competitors":   r.get("competitors") or "",
+                "bio":           r.get("bio") or "",
+                "tags":          r.get("tags") or [],
+                "observations":  r.get("observations") or "",
+                "goals":         r.get("goals") or {},
                 "_source":       "supabase",
             }
             for r in rows

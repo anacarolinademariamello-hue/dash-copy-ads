@@ -486,6 +486,14 @@ if st.button("Gerar 5 Copies", use_container_width=True):
 
         with st.spinner("Gerando copies com IA..."):
             try:
+                # ── Busca histórico de copies do cliente ──────────────────
+                client_approved = []
+                client_rejected = []
+                if selected_client:
+                    all_saved = load_saved(client_name=selected_client["name"], limit=20)
+                    client_approved = [c for c in all_saved if c.get("status") == "aprovada"]
+                    client_rejected = [c for c in all_saved if c.get("status") == "rejeitada"]
+
                 form_data = {
                     "niche": niche,
                     "sub_niche": sub_niche,
@@ -505,8 +513,17 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                     "criativo_estrutura": criativo_estrutura.strip(),
                     "referencias": referencias.strip(),
                     "niche_data": niche_data,
-                    "client_name": selected_client["name"] if selected_client else "",
-                    "client_tone_of_voice": (selected_client.get("tone_of_voice", "") if selected_client else ""),
+                    # ── Dados do cliente ──────────────────────────────────
+                    "client_name":          selected_client["name"] if selected_client else "",
+                    "client_tone_of_voice": selected_client.get("tone_of_voice", "") if selected_client else "",
+                    "client_bio":           selected_client.get("bio", "") if selected_client else "",
+                    "client_tags":          selected_client.get("tags", []) if selected_client else [],
+                    "client_observations":  selected_client.get("observations", "") if selected_client else "",
+                    "client_goals":         selected_client.get("goals", {}) if selected_client else {},
+                    "client_competitors":   selected_client.get("competitors", "") if selected_client else "",
+                    # ── Histórico de copies ───────────────────────────────
+                    "client_approved_copies": client_approved,
+                    "client_rejected_copies": client_rejected,
                 }
                 copies = generate_copies(form_data)
                 st.session_state.copies = copies
