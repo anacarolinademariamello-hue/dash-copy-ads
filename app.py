@@ -4,7 +4,7 @@ import base64
 from src.niches import NICHES, OBJECTIVES, TONES, CTAS
 from src.copy_gen import generate_copies, COPY_TYPES, CRIATIVO_LABELS
 from src.clients import load_clients, save_client, delete_client, extract_text
-from src.copies_db import save_batch, update_copy_status, load_batches
+from src.copies_db import save_approved_copy, load_approved
 from src.styles import (
     get_sidebar_css,
     get_main_css,
@@ -133,7 +133,6 @@ def _build_download_html(copies: list, fd: dict) -> str:
 for key, default in [
     ("copies", None),
     ("form_data", None),
-    ("batch_id", None),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -186,15 +185,14 @@ with st.sidebar:
                 with col_ap1:
                     if st.button("✅ Aprovar", key=f"btn_aprove_{i}", use_container_width=True):
                         st.session_state[status_key] = "aprovada"
-                        update_copy_status(st.session_state.batch_id, i, "aprovada")
+                        save_approved_copy(st.session_state.form_data, copy, i)
+                        load_approved.clear()
                 with col_ap2:
                     if st.button("🧪 Testar", key=f"btn_test_{i}", use_container_width=True):
                         st.session_state[status_key] = "em_teste"
-                        update_copy_status(st.session_state.batch_id, i, "em_teste")
                 with col_ap3:
                     if st.button("❌ Rejeitar", key=f"btn_reject_{i}", use_container_width=True):
                         st.session_state[status_key] = "rejeitada"
-                        update_copy_status(st.session_state.batch_id, i, "rejeitada")
 
                 status = st.session_state.get(status_key)
                 if status:
@@ -488,9 +486,6 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                 copies = generate_copies(form_data)
                 st.session_state.copies = copies
                 st.session_state.form_data = form_data
-                # Salva lote no Supabase e guarda o ID
-                batch_id = save_batch(form_data, copies)
-                st.session_state.batch_id = batch_id
                 # Limpa status individuais da sessão anterior
                 for _k in [f"approval_{j}" for j in range(1, 6)]:
                     st.session_state.pop(_k, None)
@@ -502,59 +497,36 @@ if st.button("Gerar 5 Copies", use_container_width=True):
 # HISTÓRICO DE COPIES
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
-with st.expander("📚 Histórico de Copies Geradas", expanded=False):
-    batches = load_batches(limit=30)
-    if not batches:
-        st.info("Nenhuma copy salva ainda. Gere copies acima para começar o histórico.")
+with st.expander("✅ Banco de Copies Aprovadas", expanded=False):
+    approved = load_approved(limit=50)
+    if not approved:
+        st.info("Nenhuma copy aprovada ainda. Clique em ✅ Aprovar em qualquer copy para salvar aqui.")
     else:
-        _color_map = {"aprovada": "#d1fae5", "em_teste": "#fef3c7", "rejeitada": "#fee2e2", "pendente": "#f3f4f6"}
-        _text_map  = {"aprovada": "#065f46", "em_teste": "#92400e", "rejeitada": "#991b1b", "pendente": "#6b7280"}
-        _label_map = {"aprovada": "✅ Aprovada", "em_teste": "🧪 Em teste", "rejeitada": "❌ Rejeitada", "pendente": "⏳ Pendente"}
-
-        for batch in batches:
-            copies_data = batch.get("copies") or []
-            # Conta por status
-            status_counts = {}
-            for c in copies_data:
-                s = c.get("status", "pendente")
-                status_counts[s] = status_counts.get(s, 0) + 1
-
-            badges = " ".join(
-                f'<span style="background:{_color_map.get(s,"#f3f4f6")};color:{_text_map.get(s,"#6b7280")};'
-                f'font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px;">'
-                f'{_label_map.get(s,s)}: {n}</span>'
-                for s, n in status_counts.items()
-            )
-
-            created = batch.get("created_at", "")[:10] if batch.get("created_at") else ""
-            client_str = f" · {batch['client_name']}" if batch.get("client_name") else ""
-
+        for row in approved:
+            created = row.get("created_at", "")[:10] if row.get("created_at") else ""
+            client_str = f" · {row['client_name']}" if row.get("client_name") else ""
             with st.expander(
-                f"**{batch.get('product', 'Sem título')}**{client_str} — {created}",
+                f"**{row.get('product','Sem título')}**{client_str} — {row.get('tipo_nome','')} — {created}",
                 expanded=False,
             ):
                 st.markdown(
-                    f'<div style="margin-bottom:10px;">'
-                    f'<span style="font-size:.78rem;color:#6b7280;">'
-                    f'{batch.get("niche","")} · {batch.get("objective","")} · {batch.get("tipo_criativo","")}'
-                    f'</span><br>{badges}</div>',
+                    f'<div style="font-size:.78rem;color:#6b7280;margin-bottom:10px;">'
+                    f'{row.get("niche","")} · {row.get("objective","")} · {row.get("tipo_criativo","")}'
+                    f'</div>',
                     unsafe_allow_html=True,
                 )
-                for j, copy in enumerate(copies_data, 1):
-                    s = copy.get("status", "pendente")
-                    st.markdown(
-                        f'<div style="background:#f8fafc;border:1px solid #dde3ed;border-radius:10px;'
-                        f'padding:12px 16px;margin-bottom:8px;">'
-                        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
-                        f'<strong style="color:#003f7c;">Copy {j} — {copy.get("tipo_nome","")}</strong>'
-                        f'<span style="background:{_color_map.get(s,"#f3f4f6")};color:{_text_map.get(s,"#6b7280")};'
-                        f'font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px;">{_label_map.get(s,s)}</span>'
-                        f'</div>'
-                        f'<div style="font-size:.85rem;color:#374151;line-height:1.6;">'
-                        f'{copy.get("legenda_completa","").replace(chr(10),"<br>")}'
-                        f'</div></div>',
-                        unsafe_allow_html=True,
-                    )
+                if row.get("legenda_hook"):
+                    st.markdown("**Hook**")
+                    st.code(row["legenda_hook"], language=None)
+                if row.get("legenda_corpo"):
+                    st.markdown("**Corpo**")
+                    st.code(row["legenda_corpo"], language=None)
+                if row.get("legenda_cta"):
+                    st.markdown("**CTA**")
+                    st.code(row["legenda_cta"], language=None)
+                if row.get("criativo"):
+                    st.markdown("**Criativo**")
+                    st.code(row["criativo"], language=None)
 
 st.markdown(
     '<p style="text-align:center;font-size:.72rem;color:#9ca3af;margin-top:16px;">'

@@ -1,21 +1,25 @@
 """
-copies_db.py — Persistência de copies geradas no Supabase.
+copies_db.py — Persistência de copies aprovadas no Supabase.
 
-Tabela: copy_batches
-  id            UUID PK default gen_random_uuid()
-  client_name   TEXT
-  client_key    TEXT
-  product       TEXT
-  niche         TEXT
-  sub_niche     TEXT
-  objective     TEXT
-  tone          TEXT
-  cta           TEXT
-  tipo_criativo TEXT
-  copies        JSONB   — lista de 5 copies, cada uma com campo "status"
-  created_at    TIMESTAMPTZ default now()
+Tabela: approved_copies
+  id               UUID PK default gen_random_uuid()
+  client_name      TEXT
+  product          TEXT
+  niche            TEXT
+  sub_niche        TEXT
+  objective        TEXT
+  tone             TEXT
+  cta              TEXT
+  tipo_criativo    TEXT
+  copy_index       INT   (1–5)
+  tipo_nome        TEXT
+  legenda_hook     TEXT
+  legenda_corpo    TEXT
+  legenda_cta      TEXT
+  legenda_completa TEXT
+  criativo         TEXT
+  created_at       TIMESTAMPTZ default now()
 """
-import json
 import requests
 import streamlit as st
 
@@ -36,142 +40,90 @@ def _configured() -> bool:
     return bool(url and key)
 
 
-def _headers(extra: dict | None = None) -> dict:
+def _headers() -> dict:
     _, key = _creds()
-    h = {
+    return {
         "apikey":        key,
         "Authorization": f"Bearer {key}",
         "Content-Type":  "application/json",
-        "Prefer":        "return=representation",
+        "Prefer":        "return=minimal",
     }
-    if extra:
-        h.update(extra)
-    return h
 
 
-def _rest(table: str) -> str:
+def _rest() -> str:
     url, _ = _creds()
-    return f"{url}/rest/v1/{table}"
+    return f"{url}/rest/v1/approved_copies"
 
 
-# ── Salvar lote ───────────────────────────────────────────────────────────────
+# ── Salvar copy aprovada ──────────────────────────────────────────────────────
 
-def save_batch(form_data: dict, copies: list) -> str | None:
+def save_approved_copy(form_data: dict, copy: dict, copy_index: int) -> bool:
     """
-    Salva um lote de 5 copies no Supabase.
-    Cada copy recebe status='pendente' inicialmente.
-    Retorna o UUID do lote (id) ou None em caso de erro.
+    Salva uma única copy aprovada no Supabase.
+    Chamada quando o usuário clica em ✅ Aprovar.
     """
     if not _configured():
-        return None
-
-    copies_with_status = [
-        {**c, "status": "pendente"} for c in copies
-    ]
+        return False
 
     payload = {
-        "client_name":   form_data.get("client_name") or "",
-        "client_key":    form_data.get("client_key") or "",
-        "product":       form_data.get("product", ""),
-        "niche":         form_data.get("niche", ""),
-        "sub_niche":     form_data.get("sub_niche", ""),
-        "objective":     form_data.get("objective", ""),
-        "tone":          form_data.get("tone", ""),
-        "cta":           form_data.get("cta", ""),
-        "tipo_criativo": form_data.get("tipo_criativo", ""),
-        "copies":        copies_with_status,
+        "client_name":      form_data.get("client_name") or "",
+        "product":          form_data.get("product", ""),
+        "niche":            form_data.get("niche", ""),
+        "sub_niche":        form_data.get("sub_niche", ""),
+        "objective":        form_data.get("objective", ""),
+        "tone":             form_data.get("tone", ""),
+        "cta":              form_data.get("cta", ""),
+        "tipo_criativo":    form_data.get("tipo_criativo", ""),
+        "copy_index":       copy_index,
+        "tipo_nome":        copy.get("tipo_nome", ""),
+        "legenda_hook":     copy.get("legenda_hook", ""),
+        "legenda_corpo":    copy.get("legenda_corpo", ""),
+        "legenda_cta":      copy.get("legenda_cta", ""),
+        "legenda_completa": copy.get("legenda_completa", ""),
+        "criativo":         copy.get("criativo", ""),
     }
 
     try:
-        r = requests.post(
-            _rest("copy_batches"),
-            headers=_headers(),
-            json=payload,
-            timeout=10,
-        )
-        if r.status_code in (200, 201):
-            data = r.json()
-            return data[0]["id"] if data else None
-        return None
-    except Exception:
-        return None
-
-
-# ── Atualizar status de uma copy ──────────────────────────────────────────────
-
-def update_copy_status(batch_id: str, copy_index: int, status: str) -> bool:
-    """
-    Atualiza o status de uma copy dentro do lote.
-    copy_index: 1-5 (1-based, como mostrado na UI).
-    status: 'aprovada' | 'em_teste' | 'rejeitada' | 'pendente'
-    """
-    if not _configured() or not batch_id:
-        return False
-
-    # Busca o lote atual
-    try:
-        r = requests.get(
-            _rest("copy_batches"),
-            headers=_headers(),
-            params={"id": f"eq.{batch_id}", "select": "copies"},
-            timeout=10,
-        )
-        r.raise_for_status()
-        rows = r.json()
-        if not rows:
-            return False
-
-        copies = rows[0]["copies"]
-        if isinstance(copies, str):
-            copies = json.loads(copies)
-
-        idx = copy_index - 1  # converte para 0-based
-        if 0 <= idx < len(copies):
-            copies[idx]["status"] = status
-
-        patch = requests.patch(
-            _rest("copy_batches"),
-            headers=_headers({"Prefer": "return=minimal"}),
-            params={"id": f"eq.{batch_id}"},
-            json={"copies": copies},
-            timeout=10,
-        )
-        return patch.status_code in (200, 204)
+        r = requests.post(_rest(), headers=_headers(), json=payload, timeout=10)
+        return r.status_code in (200, 201)
     except Exception:
         return False
 
 
-# ── Carregar histórico ────────────────────────────────────────────────────────
+# ── Carregar histórico de aprovadas ──────────────────────────────────────────
 
 @st.cache_data(ttl=30)
-def load_batches(client_name: str = "", limit: int = 50) -> list[dict]:
+def load_approved(client_name: str = "", limit: int = 50) -> list[dict]:
     """
-    Carrega histórico de lotes salvos.
-    Se client_name for fornecido, filtra por cliente.
+    Carrega copies aprovadas, ordenadas da mais recente.
+    Filtra por cliente se client_name for informado.
     """
     if not _configured():
         return []
 
+    _, key = _creds()
+    url_base, _ = _creds()
     params = {
         "order":  "created_at.desc",
         "limit":  str(limit),
-        "select": "id,client_name,product,niche,objective,copies,created_at",
+        "select": "id,client_name,product,niche,objective,tipo_criativo,"
+                  "tipo_nome,legenda_hook,legenda_corpo,legenda_cta,"
+                  "legenda_completa,criativo,created_at",
     }
     if client_name:
         params["client_name"] = f"eq.{client_name}"
 
     try:
         r = requests.get(
-            _rest("copy_batches"),
-            headers=_headers(),
+            f"{url_base}/rest/v1/approved_copies",
+            headers={
+                "apikey":        key,
+                "Authorization": f"Bearer {key}",
+            },
             params=params,
             timeout=10,
         )
         r.raise_for_status()
-        rows = r.json()
-        for row in rows:
-            if isinstance(row.get("copies"), str):
-                row["copies"] = json.loads(row["copies"])
-        return rows
+        return r.json()
     except Exception:
         return []
