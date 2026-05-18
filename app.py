@@ -4,7 +4,7 @@ import base64
 from src.niches import NICHES, OBJECTIVES, TONES, CTAS
 from src.copy_gen import generate_copies, COPY_TYPES, CRIATIVO_LABELS
 from src.clients import load_clients, save_client, delete_client, extract_text
-from src.copies_db import save_approved_copy, load_approved
+from src.copies_db import save_approved_copy, save_rejected_copy, load_saved
 from src.styles import (
     get_sidebar_css,
     get_main_css,
@@ -177,30 +177,55 @@ with st.sidebar:
                 st.text_area("cri", value=copy.get("criativo", ""),
                              height=110, label_visibility="collapsed", key=f"cri_{i}")
 
-                col_ap1, col_ap2, col_ap3 = st.columns(3)
-                status_key = f"approval_{i}"
+                col_ap1, col_ap2 = st.columns(2)
+                status_key   = f"approval_{i}"
+                rejecting_key = f"rejecting_{i}"
                 if status_key not in st.session_state:
                     st.session_state[status_key] = None
+                if rejecting_key not in st.session_state:
+                    st.session_state[rejecting_key] = False
 
                 with col_ap1:
                     if st.button("✅ Aprovar", key=f"btn_aprove_{i}", use_container_width=True):
-                        st.session_state[status_key] = "aprovada"
+                        st.session_state[status_key]   = "aprovada"
+                        st.session_state[rejecting_key] = False
                         save_approved_copy(st.session_state.form_data, copy, i)
-                        load_approved.clear()
+                        load_saved.clear()
                 with col_ap2:
-                    if st.button("🧪 Testar", key=f"btn_test_{i}", use_container_width=True):
-                        st.session_state[status_key] = "em_teste"
-                with col_ap3:
                     if st.button("❌ Rejeitar", key=f"btn_reject_{i}", use_container_width=True):
-                        st.session_state[status_key] = "rejeitada"
+                        if st.session_state[status_key] != "rejeitada":
+                            st.session_state[rejecting_key] = True
+
+                # ── Fluxo de rejeição: campo de motivo ────────────────────────
+                if st.session_state[rejecting_key]:
+                    reason_input = st.text_area(
+                        "Motivo da rejeição",
+                        placeholder="Ex: tom muito agressivo, não combina com o cliente, hook fraco...",
+                        key=f"reason_{i}",
+                        height=80,
+                    )
+                    rc1, rc2 = st.columns(2)
+                    with rc1:
+                        if st.button("Confirmar rejeição", key=f"btn_confirm_reject_{i}", use_container_width=True, type="primary"):
+                            if reason_input.strip():
+                                st.session_state[status_key]   = "rejeitada"
+                                st.session_state[rejecting_key] = False
+                                save_rejected_copy(st.session_state.form_data, copy, i, reason_input.strip())
+                                load_saved.clear()
+                            else:
+                                st.warning("Escreva o motivo antes de confirmar.")
+                    with rc2:
+                        if st.button("Cancelar", key=f"btn_cancel_reject_{i}", use_container_width=True):
+                            st.session_state[rejecting_key] = False
 
                 status = st.session_state.get(status_key)
                 if status:
-                    color_map = {"aprovada": "#d1fae5", "em_teste": "#fef3c7", "rejeitada": "#fee2e2"}
-                    text_map  = {"aprovada": "#065f46", "em_teste": "#92400e", "rejeitada": "#991b1b"}
-                    label_map = {"aprovada": "APROVADA", "em_teste": "EM TESTE", "rejeitada": "REJEITADA"}
+                    color_map = {"aprovada": "#d1fae5", "rejeitada": "#fee2e2"}
+                    text_map  = {"aprovada": "#065f46", "rejeitada": "#991b1b"}
+                    label_map = {"aprovada": "APROVADA", "rejeitada": "REJEITADA"}
                     st.markdown(
-                        f'<div style="background:{color_map[status]};color:{text_map[status]};'
+                        f'<div style="background:{color_map.get(status,"#f3f4f6")};'
+                        f'color:{text_map.get(status,"#374151")};'
                         f'font-size:.75rem;font-weight:700;padding:4px 12px;border-radius:8px;'
                         f'text-align:center;margin-top:4px;">Status: {label_map.get(status, status.upper())}</div>',
                         unsafe_allow_html=True,
@@ -497,36 +522,42 @@ if st.button("Gerar 5 Copies", use_container_width=True):
 # HISTÓRICO DE COPIES
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
-with st.expander("✅ Banco de Copies Aprovadas", expanded=False):
-    approved = load_approved(limit=50)
-    if not approved:
-        st.info("Nenhuma copy aprovada ainda. Clique em ✅ Aprovar em qualquer copy para salvar aqui.")
-    else:
-        for row in approved:
-            created = row.get("created_at", "")[:10] if row.get("created_at") else ""
-            client_str = f" · {row['client_name']}" if row.get("client_name") else ""
-            with st.expander(
-                f"**{row.get('product','Sem título')}**{client_str} — {row.get('tipo_nome','')} — {created}",
-                expanded=False,
-            ):
-                st.markdown(
-                    f'<div style="font-size:.78rem;color:#6b7280;margin-bottom:10px;">'
-                    f'{row.get("niche","")} · {row.get("objective","")} · {row.get("tipo_criativo","")}'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-                if row.get("legenda_hook"):
-                    st.markdown("**Hook**")
-                    st.code(row["legenda_hook"], language=None)
-                if row.get("legenda_corpo"):
-                    st.markdown("**Corpo**")
-                    st.code(row["legenda_corpo"], language=None)
-                if row.get("legenda_cta"):
-                    st.markdown("**CTA**")
-                    st.code(row["legenda_cta"], language=None)
-                if row.get("criativo"):
-                    st.markdown("**Criativo**")
-                    st.code(row["criativo"], language=None)
+with st.expander("📋 Banco de Copies Salvas", expanded=False):
+    tab_apr, tab_rej = st.tabs(["✅ Aprovadas", "❌ Rejeitadas"])
+
+    with tab_apr:
+        aprovadas = load_saved(status="aprovada", limit=50)
+        if not aprovadas:
+            st.info("Nenhuma copy aprovada ainda. Clique em ✅ Aprovar para salvar.")
+        else:
+            for row in aprovadas:
+                created    = row.get("created_at", "")[:10] if row.get("created_at") else ""
+                client_str = f" · {row['client_name']}" if row.get("client_name") else ""
+                with st.expander(f"**{row.get('product','Sem título')}**{client_str} — {row.get('tipo_nome','')} — {created}", expanded=False):
+                    st.markdown(f'<div style="font-size:.78rem;color:#6b7280;margin-bottom:10px;">{row.get("niche","")} · {row.get("objective","")} · {row.get("tipo_criativo","")}</div>', unsafe_allow_html=True)
+                    if row.get("legenda_hook"):
+                        st.markdown("**Hook**"); st.code(row["legenda_hook"], language=None)
+                    if row.get("legenda_corpo"):
+                        st.markdown("**Corpo**"); st.code(row["legenda_corpo"], language=None)
+                    if row.get("legenda_cta"):
+                        st.markdown("**CTA**"); st.code(row["legenda_cta"], language=None)
+                    if row.get("criativo"):
+                        st.markdown("**Criativo**"); st.code(row["criativo"], language=None)
+
+    with tab_rej:
+        rejeitadas = load_saved(status="rejeitada", limit=50)
+        if not rejeitadas:
+            st.info("Nenhuma copy rejeitada ainda.")
+        else:
+            for row in rejeitadas:
+                created    = row.get("created_at", "")[:10] if row.get("created_at") else ""
+                client_str = f" · {row['client_name']}" if row.get("client_name") else ""
+                with st.expander(f"**{row.get('product','Sem título')}**{client_str} — {row.get('tipo_nome','')} — {created}", expanded=False):
+                    st.markdown(f'<div style="font-size:.78rem;color:#6b7280;margin-bottom:10px;">{row.get("niche","")} · {row.get("objective","")} · {row.get("tipo_criativo","")}</div>', unsafe_allow_html=True)
+                    if row.get("reason"):
+                        st.markdown(f'<div style="background:#fee2e2;color:#991b1b;border-radius:8px;padding:8px 12px;font-size:.85rem;margin-bottom:10px;">❌ Motivo: {row["reason"]}</div>', unsafe_allow_html=True)
+                    if row.get("legenda_completa"):
+                        st.code(row["legenda_completa"], language=None)
 
 st.markdown(
     '<p style="text-align:center;font-size:.72rem;color:#9ca3af;margin-top:16px;">'
