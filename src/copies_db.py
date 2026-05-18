@@ -5,6 +5,7 @@ Tabela: saved_copies
   status = 'aprovada' | 'rejeitada'
   reason = motivo da rejeição (apenas para rejeitadas)
 """
+import re
 import requests
 import streamlit as st
 
@@ -147,3 +148,70 @@ def load_saved(status: str = "", client_name: str = "", limit: int = 50) -> list
         return r.json()
     except Exception:
         return []
+
+
+# ── Padrões de rejeição agregados ─────────────────────────────────────────────
+
+def get_rejection_patterns(client_name: str) -> str:
+    """
+    Analisa os motivos de rejeição do cliente e retorna um resumo
+    dos padrões mais frequentes para incluir no prompt do Claude.
+    Retorna string vazia se não houver rejeições suficientes.
+    """
+    if not _configured() or not client_name:
+        return ""
+
+    url_base, key = _creds()
+    try:
+        r = requests.get(
+            f"{url_base}/rest/v1/saved_copies",
+            headers={"apikey": key, "Authorization": f"Bearer {key}"},
+            params={
+                "client_name": f"eq.{client_name}",
+                "status":      "eq.rejeitada",
+                "order":       "created_at.desc",
+                "limit":       "30",
+                "select":      "reason",
+            },
+            timeout=10,
+        )
+        r.raise_for_status()
+        rows = r.json()
+    except Exception:
+        return ""
+
+    reasons = [row.get("reason", "").strip() for row in rows if row.get("reason", "").strip()]
+    if len(reasons) < 3:
+        return ""
+
+    # Palavras-chave de rejeição mais comuns no contexto de copy
+    keywords = [
+        ("formal", ["formal", "sério", "corporativo", "frio"]),
+        ("agressivo", ["agressivo", "forte demais", "exagerado", "forçado"]),
+        ("longo", ["longo", "extenso", "grande demais", "comprido", "muito texto"]),
+        ("genérico", ["genérico", "vago", "superficial", "geral", "sem especificidade"]),
+        ("tom errado", ["tom", "linguagem", "voz", "estilo errado", "não combina"]),
+        ("fraco", ["fraco", "sem impacto", "sem força", "sem gancho", "hook fraco"]),
+        ("clichê", ["clichê", "batido", "óbvio", "lugar-comum"]),
+        ("curto", ["curto demais", "faltou", "incompleto", "raso"]),
+    ]
+
+    counts = {}
+    for label, terms in keywords:
+        count = sum(
+            1 for reason in reasons
+            if any(t in reason.lower() for t in terms)
+        )
+        if count >= 2:
+            counts[label] = count
+
+    if not counts:
+        return ""
+
+    sorted_patterns = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+    lines = [f"Padrões identificados nas últimas {len(reasons)} rejeições deste cliente:"]
+    for label, count in sorted_patterns[:5]:
+        lines.append(f"  • '{label}' mencionado {count}x — evite esse padrão proativamente")
+    lines.append("  → Ajuste o tom e estrutura desde o início para não repetir esses erros.")
+
+    return "\n".join(lines)

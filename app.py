@@ -4,7 +4,7 @@ import base64
 from src.niches import NICHES, OBJECTIVES, TONES, CTAS, FORMAT_OPTIONS, FORMAT_TIPS
 from src.copy_gen import generate_copies, COPY_TYPES, CRIATIVO_LABELS
 from src.clients import load_clients, save_client, delete_client, extract_text, delete_client_supabase, save_performance_context, load_latest_report_metrics
-from src.copies_db import save_approved_copy, save_rejected_copy, load_saved
+from src.copies_db import save_approved_copy, save_rejected_copy, load_saved, get_rejection_patterns
 from src.styles import (
     get_sidebar_css,
     get_main_css,
@@ -360,9 +360,10 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div class="form-section"><div class="form-section-title">Nicho & Produto</div>', unsafe_allow_html=True)
 
-_client_nicho = selected_client.get("nicho", "") if selected_client else ""
-_niche_keys   = list(NICHES.keys())
-_niche_index  = _niche_keys.index(_client_nicho) if _client_nicho in _niche_keys else 0
+_client_nicho     = selected_client.get("nicho", "") if selected_client else ""
+_client_sub_nicho = selected_client.get("sub_nicho", "") if selected_client else ""
+_niche_keys       = list(NICHES.keys())
+_niche_index      = _niche_keys.index(_client_nicho) if _client_nicho in _niche_keys else 0
 
 col1, col2 = st.columns(2)
 with col1:
@@ -370,7 +371,9 @@ with col1:
                          format_func=lambda x: f"{NICHES[x]['icon']} {x}",
                          index=_niche_index, key="niche")
 with col2:
-    sub_niche = st.selectbox("Sub-nicho", options=NICHES[niche]["sub"], key="sub_niche")
+    _sub_opts  = NICHES[niche]["sub"]
+    _sub_index = _sub_opts.index(_client_sub_nicho) if _client_sub_nicho in _sub_opts else 0
+    sub_niche  = st.selectbox("Sub-nicho", options=_sub_opts, index=_sub_index, key="sub_niche")
 
 niche_data = NICHES[niche]
 col3, col4 = st.columns(2)
@@ -510,6 +513,7 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                 client_approved = []
                 client_rejected = []
                 client_report_metrics = ""
+                client_rejection_patterns = ""
                 if selected_client:
                     all_saved = load_saved(client_name=selected_client["name"], limit=20)
                     client_approved = [c for c in all_saved if c.get("status") == "aprovada"]
@@ -518,6 +522,8 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                     client_key = selected_client.get("key", "")
                     if client_key:
                         client_report_metrics = load_latest_report_metrics(client_key)
+                    # Padrões de rejeição agregados
+                    client_rejection_patterns = get_rejection_patterns(selected_client["name"])
 
                 form_data = {
                     "niche": niche,
@@ -551,8 +557,9 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                     "client_performance_context": selected_client.get("performance_context", "") if selected_client else "",
                     "client_report_metrics":      client_report_metrics,
                     # ── Histórico de copies ───────────────────────────────
-                    "client_approved_copies": client_approved,
-                    "client_rejected_copies": client_rejected,
+                    "client_approved_copies":    client_approved,
+                    "client_rejected_copies":    client_rejected,
+                    "client_rejection_patterns": client_rejection_patterns,
                 }
                 copies = generate_copies(form_data)
                 st.session_state.copies = copies

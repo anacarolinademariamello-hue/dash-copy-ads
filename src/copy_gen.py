@@ -98,6 +98,12 @@ def _build_prompt(form: dict) -> str:
         if form.get("client_report_metrics") else ""
     )
 
+    patterns_line = (
+        f"\n\n## PADRÕES DE REJEIÇÃO RECORRENTES — EVITE PROATIVAMENTE\n"
+        f"{form.get('client_rejection_patterns','')}"
+        if form.get("client_rejection_patterns") else ""
+    )
+
     # ── Perfil completo do cliente ────────────────────────────────────────────
     client_profile_parts = []
     if form.get("client_bio"):
@@ -221,7 +227,7 @@ def _build_prompt(form: dict) -> str:
 - **Principal Desejo:** {form['desire']}{usp_line}{offer_line}{client_line}
 - **Objetivo:** {form['objective']} — {form['objective_desc']}
 - **Tom de Voz:** {form['tone']}
-- **CTA Desejado:** {form['cta']}{kw_line}{saz_line}{client_profile_line}{tov_line}{perf_line}{metrics_line}{approved_line}{rejected_line}
+- **CTA Desejado:** {form['cta']}{kw_line}{saz_line}{client_profile_line}{tov_line}{perf_line}{metrics_line}{patterns_line}{approved_line}{rejected_line}
 
 ## TIPO DE CRIATIVO: {tipo}{formato_line}
 
