@@ -257,6 +257,82 @@ def delete_client(name: str) -> tuple[bool, str]:
         return False, f"Erro: {e}"
 
 
+def load_latest_report_metrics(client_key: str) -> str:
+    """
+    Busca as métricas mais recentes do relatório do cliente no Supabase
+    e retorna um resumo formatado como texto para o prompt da IA.
+    Retorna string vazia se não houver histórico ou Supabase não configurado.
+    """
+    if not _supabase_configured() or not client_key:
+        return ""
+    url, key = _supabase_creds()
+    try:
+        r = requests.get(
+            f"{url}/rest/v1/report_history",
+            headers={"apikey": key, "Authorization": f"Bearer {key}"},
+            params={
+                "client_key": f"eq.{client_key}",
+                "order":      "generated_at.desc",
+                "limit":      "1",
+                "select":     "date_from,date_to,metrics",
+            },
+            timeout=10,
+        )
+        r.raise_for_status()
+        rows = r.json()
+        if not rows:
+            return ""
+        row = rows[0]
+        m = row.get("metrics", {})
+        if isinstance(m, str):
+            m = json.loads(m)
+
+        period = f"{row.get('date_from', '')[:7]} → {row.get('date_to', '')[:7]}"
+        lines = [f"Dados do último relatório gerado ({period}):"]
+
+        # KPIs principais
+        if m.get("total_reach"):
+            lines.append(f"- Alcance total: {int(m['total_reach']):,} ({m.get('organic_pct',0):.0f}% orgânico, {m.get('paid_pct',0):.0f}% pago)".replace(",", "."))
+        if m.get("org_eng_rate"):
+            lines.append(f"- Engajamento orgânico: {float(m['org_eng_rate']):.2f}%")
+        if m.get("followers_gained"):
+            lines.append(f"- Seguidores ganhos no período: +{int(m['followers_gained'])}")
+        if m.get("total_saves"):
+            lines.append(f"- Salvamentos: {int(m['total_saves']):,}".replace(",", "."))
+        if m.get("total_spend"):
+            lines.append(f"- Gasto em anúncios: R${float(m['total_spend']):.2f}")
+        if m.get("avg_ctr"):
+            lines.append(f"- CTR médio dos anúncios: {float(m['avg_ctr']):.2f}%")
+        if m.get("avg_cpm"):
+            lines.append(f"- CPM médio: R${float(m['avg_cpm']):.2f}")
+        if m.get("avg_cpc"):
+            lines.append(f"- CPC médio: R${float(m['avg_cpc']):.2f}")
+
+        # Formatos de conteúdo
+        formats = m.get("content_formats", [])
+        if formats:
+            lines.append("\nPerformance por formato de conteúdo:")
+            for f in formats:
+                lines.append(
+                    f"  • {f['type']}: {f['count']} posts | alcance médio {f['avg_reach']:.0f} | "
+                    f"{f['avg_interactions']:.0f} interações/post | engaj. {f['avg_eng_rate']:.2f}%"
+                )
+            if m.get("best_format"):
+                lines.append(f"  → Formato com melhor desempenho: {m['best_format']}")
+
+        # Melhores horários
+        best_hours = m.get("best_hours", [])
+        if best_hours:
+            lines.append("\nMelhores horários para publicar (maior engajamento):")
+            for h in best_hours:
+                lines.append(f"  • {h['label']} — média de {h['avg_interactions']:.0f} interações ({h['count']} posts)")
+
+        return "\n".join(lines)
+
+    except Exception:
+        return ""
+
+
 def extract_text(uploaded_file) -> str:
     """Extrai texto de arquivo TXT ou PDF."""
     name = uploaded_file.name.lower()

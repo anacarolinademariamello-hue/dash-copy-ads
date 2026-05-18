@@ -3,7 +3,7 @@ import base64
 
 from src.niches import NICHES, OBJECTIVES, TONES, CTAS, FORMAT_OPTIONS, FORMAT_TIPS
 from src.copy_gen import generate_copies, COPY_TYPES, CRIATIVO_LABELS
-from src.clients import load_clients, save_client, delete_client, extract_text, delete_client_supabase, save_performance_context
+from src.clients import load_clients, save_client, delete_client, extract_text, delete_client_supabase, save_performance_context, load_latest_report_metrics
 from src.copies_db import save_approved_copy, save_rejected_copy, load_saved
 from src.styles import (
     get_sidebar_css,
@@ -509,10 +509,15 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                 # ── Busca histórico de copies do cliente ──────────────────
                 client_approved = []
                 client_rejected = []
+                client_report_metrics = ""
                 if selected_client:
                     all_saved = load_saved(client_name=selected_client["name"], limit=20)
                     client_approved = [c for c in all_saved if c.get("status") == "aprovada"]
                     client_rejected = [c for c in all_saved if c.get("status") == "rejeitada"]
+                    # Métricas reais do último relatório gerado
+                    client_key = selected_client.get("key", "")
+                    if client_key:
+                        client_report_metrics = load_latest_report_metrics(client_key)
 
                 form_data = {
                     "niche": niche,
@@ -543,6 +548,7 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                     "client_goals":         selected_client.get("goals", {}) if selected_client else {},
                     "client_competitors":          selected_client.get("competitors", "") if selected_client else "",
                     "client_performance_context": selected_client.get("performance_context", "") if selected_client else "",
+                    "client_report_metrics":      client_report_metrics,
                     # ── Histórico de copies ───────────────────────────────
                     "client_approved_copies": client_approved,
                     "client_rejected_copies": client_rejected,
