@@ -1,7 +1,7 @@
 import streamlit as st
 import base64
 
-from src.niches import NICHES, OBJECTIVES, TONES, CTAS
+from src.niches import NICHES, OBJECTIVES, TONES, CTAS, FORMAT_OPTIONS, FORMAT_TIPS
 from src.copy_gen import generate_copies, COPY_TYPES, CRIATIVO_LABELS
 from src.clients import load_clients, save_client, delete_client, extract_text, delete_client_supabase, save_performance_context
 from src.copies_db import save_approved_copy, save_rejected_copy, load_saved
@@ -458,6 +458,14 @@ tipo_criativo = st.radio(
     key="tipo_criativo",
 )
 
+formato_anuncio = st.radio(
+    "Formato / Placement",
+    options=FORMAT_OPTIONS,
+    horizontal=True,
+    key="formato_anuncio",
+    help="Onde o anúncio vai aparecer — determina limites de texto e estrutura ideal da copy.",
+)
+
 criativo_estrutura = st.text_area(
     "Estrutura do criativo",
     placeholder=(
@@ -517,6 +525,7 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                     "extra_keywords": extra_keywords.strip(),
                     "sazonalidade": sazonalidade.strip(),
                     "tipo_criativo": tipo_criativo,
+                    "formato_anuncio": formato_anuncio,
                     "criativo_estrutura": criativo_estrutura.strip(),
                     "referencias": referencias.strip(),
                     "niche_data": niche_data,

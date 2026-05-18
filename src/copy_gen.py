@@ -1,6 +1,7 @@
 import re
 import anthropic
 import streamlit as st
+from src.niches import FORMAT_TIPS
 
 COPY_TYPES = [
     {
@@ -166,6 +167,15 @@ def _build_prompt(form: dict) -> str:
                 + "\n\n".join(examples)
             )
 
+    # ── Dicas de formato/placement ────────────────────────────────────────────
+    formato = form.get("formato_anuncio", "")
+    formato_tip = FORMAT_TIPS.get(formato, "")
+    formato_line = (
+        f"\n\n## FORMATO DO ANÚNCIO: {formato}\n"
+        f"Diretrizes específicas para este placement:\n{formato_tip}"
+        if formato and formato_tip else ""
+    )
+
     tipo = form.get("tipo_criativo", "Card (imagem)")
     criativo_instrucao = {
         "Vídeo": (
@@ -204,7 +214,7 @@ def _build_prompt(form: dict) -> str:
 - **Tom de Voz:** {form['tone']}
 - **CTA Desejado:** {form['cta']}{kw_line}{saz_line}{client_profile_line}{tov_line}{perf_line}{approved_line}{rejected_line}
 
-## TIPO DE CRIATIVO: {tipo}
+## TIPO DE CRIATIVO: {tipo}{formato_line}
 
 ## ESTRUTURA DO CRIATIVO
 {form['criativo_estrutura'] if form.get('criativo_estrutura') else 'Sem estrutura definida — use seu julgamento para o tipo de criativo selecionado.'}
