@@ -541,6 +541,7 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                     "niche_data": niche_data,
                     # ── Dados do cliente ──────────────────────────────────
                     "client_name":          selected_client["name"] if selected_client else "",
+                    "client_key":           selected_client.get("key", "") if selected_client else "",
                     "client_tone_of_voice": selected_client.get("tone_of_voice", "") if selected_client else "",
                     "client_bio":           selected_client.get("bio", "") if selected_client else "",
                     "client_tags":          selected_client.get("tags", []) if selected_client else [],

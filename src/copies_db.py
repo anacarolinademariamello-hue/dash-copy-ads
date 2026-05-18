@@ -40,11 +40,21 @@ def _rest() -> str:
     return f"{url}/rest/v1/saved_copies"
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _extract_score_num(hook_score: str) -> int:
+    """Extrai o número inteiro de strings como '8/10 — justificativa'."""
+    import re
+    m = re.search(r"(\d+)\s*/\s*10", hook_score)
+    return int(m.group(1)) if m else 0
+
+
 # ── Montar payload base ────────────────────────────────────────────────────────
 
 def _build_payload(form_data: dict, copy: dict, copy_index: int, status: str, reason: str = "") -> dict:
     return {
         "client_name":      form_data.get("client_name") or "",
+        "client_key":       form_data.get("client_key") or "",
         "product":          form_data.get("product", ""),
         "niche":            form_data.get("niche", ""),
         "sub_niche":        form_data.get("sub_niche", ""),
@@ -62,6 +72,7 @@ def _build_payload(form_data: dict, copy: dict, copy_index: int, status: str, re
         "status":           status,
         "reason":           reason,
         "hook_score":       copy.get("hook_score", ""),
+        "hook_score_num":   _extract_score_num(copy.get("hook_score", "")),
     }
 
 

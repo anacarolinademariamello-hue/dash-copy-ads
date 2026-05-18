@@ -54,7 +54,8 @@ def _load_from_supabase() -> list[dict]:
         rows = resp.json()
         return [
             {
-                "name":          r["name"],
+                "name":                r["name"],
+                "key":                 r.get("key") or "",
                 "tone_of_voice":       r.get("tone_of_voice") or "",
                 "performance_context": r.get("performance_context") or "",
                 "competitors":         r.get("competitors") or "",
@@ -320,12 +321,51 @@ def load_latest_report_metrics(client_key: str) -> str:
             if m.get("best_format"):
                 lines.append(f"  → Formato com melhor desempenho: {m['best_format']}")
 
+        # Frequência de postagem
+        posting_days = m.get("posting_days", 0)
+        total_posts  = m.get("total_posts", 0)
+        days         = m.get("days", 0)
+        if posting_days and days:
+            lines.append(f"- Frequência: {total_posts} posts em {days} dias ({posting_days} dias com publicação)")
+
+        # Custo por seguidor
+        cpf = m.get("cost_per_follower", 0)
+        if cpf and cpf > 0:
+            lines.append(f"- Custo estimado por seguidor: R${cpf:.2f}")
+
         # Melhores horários
         best_hours = m.get("best_hours", [])
         if best_hours:
             lines.append("\nMelhores horários para publicar (maior engajamento):")
             for h in best_hours:
                 lines.append(f"  • {h['label']} — média de {h['avg_interactions']:.0f} interações ({h['count']} posts)")
+
+        # Audiência real
+        aud = m.get("audience", {})
+        if aud:
+            aud_parts = []
+            if aud.get("pct_female") or aud.get("pct_male"):
+                aud_parts.append(f"{aud.get('pct_female',0):.0f}% feminino / {aud.get('pct_male',0):.0f}% masculino")
+            if aud.get("dominant_age"):
+                aud_parts.append(f"faixa etária dominante: {aud['dominant_age']} anos")
+            if aud.get("top_country"):
+                pct = aud.get("top_country_pct", 0)
+                aud_parts.append(f"{aud['top_country']} ({pct:.0f}% da audiência)")
+            if aud_parts:
+                lines.append(f"\nPerfil real da audiência: {' | '.join(aud_parts)}")
+                lines.append("  → Use esse perfil para calibrar tom, referências culturais e exemplos de dor nos hooks.")
+
+        # Campanhas individuais
+        campaigns = m.get("top_campaigns", [])
+        if campaigns:
+            lines.append("\nCampanhas ativas no último período:")
+            for c in campaigns:
+                status_label = {"best": "✅ melhor desempenho", "warning": "⚠️ atenção", "ok": "regular", "ended": "encerrada"}.get(c.get("status",""), "")
+                lines.append(
+                    f"  • '{c['name']}' ({c.get('objective','')}) — "
+                    f"CTR {c['ctr']:.2f}% | CPM R${c['cpm']:.2f} | CPC R${c['cpc']:.2f} | {status_label}"
+                )
+            lines.append("  → Criativos para campanhas com status ⚠️ precisam de hooks mais fortes para melhorar o CTR.")
 
         return "\n".join(lines)
 

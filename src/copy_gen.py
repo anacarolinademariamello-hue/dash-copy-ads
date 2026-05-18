@@ -137,6 +137,9 @@ def _build_prompt(form: dict) -> str:
 
     # ── Copies aprovadas — exemplos do que funciona ───────────────────────────
     approved_copies = form.get("client_approved_copies", [])
+    # Prioriza copies com hook_score_num >= 7; se não houver, usa todas
+    high_quality = [c for c in approved_copies if (c.get("hook_score_num") or 0) >= 7]
+    approved_copies = high_quality if high_quality else approved_copies
     approved_line = ""
     if approved_copies:
         examples = []
