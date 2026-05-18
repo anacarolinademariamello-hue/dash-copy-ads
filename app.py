@@ -360,10 +360,15 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div class="form-section"><div class="form-section-title">Nicho & Produto</div>', unsafe_allow_html=True)
 
+_client_nicho = selected_client.get("nicho", "") if selected_client else ""
+_niche_keys   = list(NICHES.keys())
+_niche_index  = _niche_keys.index(_client_nicho) if _client_nicho in _niche_keys else 0
+
 col1, col2 = st.columns(2)
 with col1:
-    niche = st.selectbox("Nicho", options=list(NICHES.keys()),
-                         format_func=lambda x: f"{NICHES[x]['icon']} {x}", key="niche")
+    niche = st.selectbox("Nicho", options=_niche_keys,
+                         format_func=lambda x: f"{NICHES[x]['icon']} {x}",
+                         index=_niche_index, key="niche")
 with col2:
     sub_niche = st.selectbox("Sub-nicho", options=NICHES[niche]["sub"], key="sub_niche")
 
