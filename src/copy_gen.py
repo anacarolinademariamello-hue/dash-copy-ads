@@ -85,6 +85,11 @@ def _build_prompt(form: dict) -> str:
         f"\n\n## TOM DE VOZ DO CLIENTE — SIGA RIGOROSAMENTE\n{form['client_tone_of_voice']}"
         if form.get("client_tone_of_voice") else ""
     )
+    perf_line = (
+        f"\n\n## CONTEXTO DE PERFORMANCE DO CLIENTE\n"
+        f"Use esses dados para entender o que está funcionando e adaptar a copy:\n{form.get('client_performance_context','')}"
+        if form.get("client_performance_context") else ""
+    )
 
     # ── Perfil completo do cliente ────────────────────────────────────────────
     client_profile_parts = []
@@ -132,8 +137,10 @@ def _build_prompt(form: dict) -> str:
             hook = c.get("legenda_hook", "").strip()
             corpo = c.get("legenda_corpo", "").strip()
             tipo = c.get("tipo_nome", "")
+            score = c.get("hook_score", "").strip()
+            score_str = f" | Score do hook: {score}" if score else ""
             if hook:
-                examples.append(f"[{tipo}]\nHook: {hook}\nCorpo: {corpo[:200]}{'...' if len(corpo) > 200 else ''}")
+                examples.append(f"[{tipo}{score_str}]\nHook: {hook}\nCorpo: {corpo[:200]}{'...' if len(corpo) > 200 else ''}")
         if examples:
             approved_line = (
                 "\n\n## COPIES QUE FUNCIONARAM PARA ESTE CLIENTE — USE COMO REFERÊNCIA DE ESTILO E TOM\n"
@@ -195,7 +202,7 @@ def _build_prompt(form: dict) -> str:
 - **Principal Desejo:** {form['desire']}{usp_line}{offer_line}{client_line}
 - **Objetivo:** {form['objective']} — {form['objective_desc']}
 - **Tom de Voz:** {form['tone']}
-- **CTA Desejado:** {form['cta']}{kw_line}{saz_line}{client_profile_line}{tov_line}{approved_line}{rejected_line}
+- **CTA Desejado:** {form['cta']}{kw_line}{saz_line}{client_profile_line}{tov_line}{perf_line}{approved_line}{rejected_line}
 
 ## TIPO DE CRIATIVO: {tipo}
 

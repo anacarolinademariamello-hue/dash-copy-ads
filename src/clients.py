@@ -46,7 +46,7 @@ def _load_from_supabase() -> list[dict]:
             params={
                 "active": "eq.true",
                 "order":  "name.asc",
-                "select": "key,name,handle,tone_of_voice,competitors,bio,tags,observations,goals",
+                "select": "key,name,handle,tone_of_voice,performance_context,competitors,bio,tags,observations,goals",
             },
             timeout=10,
         )
@@ -55,13 +55,14 @@ def _load_from_supabase() -> list[dict]:
         return [
             {
                 "name":          r["name"],
-                "tone_of_voice": r.get("tone_of_voice") or "",
-                "competitors":   r.get("competitors") or "",
-                "bio":           r.get("bio") or "",
-                "tags":          r.get("tags") or [],
-                "observations":  r.get("observations") or "",
-                "goals":         r.get("goals") or {},
-                "_source":       "supabase",
+                "tone_of_voice":       r.get("tone_of_voice") or "",
+                "performance_context": r.get("performance_context") or "",
+                "competitors":         r.get("competitors") or "",
+                "bio":                 r.get("bio") or "",
+                "tags":                r.get("tags") or [],
+                "observations":        r.get("observations") or "",
+                "goals":               r.get("goals") or {},
+                "_source":             "supabase",
             }
             for r in rows
         ]
@@ -108,6 +109,60 @@ def load_clients() -> list[dict]:
             return json.load(f).get("clients", [])
     except Exception:
         return []
+
+
+def delete_client_supabase(client_name: str) -> tuple[bool, str]:
+    """Desativa cliente no Supabase (soft delete — marca active=false)."""
+    if not _supabase_configured():
+        return False, "Supabase não configurado."
+    url, key = _supabase_creds()
+    try:
+        r = requests.patch(
+            f"{url}/rest/v1/clients",
+            headers={
+                "apikey": key,
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            },
+            params={"name": f"eq.{client_name}"},
+            json={"active": False},
+            timeout=10,
+        )
+        if r.status_code in (200, 204):
+            load_clients.clear()
+            _load_from_supabase.clear()
+            return True, f"Cliente '{client_name}' desativado."
+        return False, f"Erro {r.status_code}: {r.text}"
+    except Exception as e:
+        return False, f"Erro: {e}"
+
+
+def save_performance_context(client_name: str, context: str) -> tuple[bool, str]:
+    """Salva o contexto de performance separado do tom de voz no Supabase."""
+    if not _supabase_configured():
+        return False, "Supabase não configurado."
+    url, key = _supabase_creds()
+    try:
+        r = requests.patch(
+            f"{url}/rest/v1/clients",
+            headers={
+                "apikey": key,
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            },
+            params={"name": f"eq.{client_name}"},
+            json={"performance_context": context},
+            timeout=10,
+        )
+        if r.status_code in (200, 204):
+            load_clients.clear()
+            _load_from_supabase.clear()
+            return True, "✅ Relatório de performance salvo!"
+        return False, f"Erro {r.status_code}: {r.text}"
+    except Exception as e:
+        return False, f"Erro: {e}"
 
 
 def save_client(new_client: dict) -> tuple[bool, str]:

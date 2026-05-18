@@ -3,7 +3,7 @@ import base64
 
 from src.niches import NICHES, OBJECTIVES, TONES, CTAS
 from src.copy_gen import generate_copies, COPY_TYPES, CRIATIVO_LABELS
-from src.clients import load_clients, save_client, delete_client, extract_text
+from src.clients import load_clients, save_client, delete_client, extract_text, delete_client_supabase, save_performance_context
 from src.copies_db import save_approved_copy, save_rejected_copy, load_saved
 from src.styles import (
     get_sidebar_css,
@@ -306,10 +306,10 @@ if modo == "Cliente cadastrado":
             col_yes, col_no = st.columns(2)
             with col_yes:
                 if st.button("✅ Sim, excluir", key="btn_confirm_delete", use_container_width=True):
-                    ok, msg = delete_client(selected_client["name"])
+                    ok, msg = delete_client_supabase(selected_client["name"])
                     st.session_state["confirm_delete"] = None
                     if ok:
-                        st.success(f"Cliente '{selected_client['name']}' excluído.")
+                        st.success(f"Cliente '{selected_client['name']}' desativado.")
                     else:
                         st.error(msg)
                     st.rerun()
@@ -318,7 +318,8 @@ if modo == "Cliente cadastrado":
                     st.session_state["confirm_delete"] = None
                     st.rerun()
 
-        with st.expander("📤 Upar relatório deste cliente"):
+        with st.expander("📤 Upar relatório de performance deste cliente"):
+            st.caption("O relatório é salvo separadamente do tom de voz e usado pela IA como contexto de performance.")
             report_file = st.file_uploader(
                 "Relatório de performance (PDF ou TXT)",
                 type=["pdf", "txt"], key="report_upload",
@@ -328,19 +329,25 @@ if modo == "Cliente cadastrado":
                 height=80, key="report_manual",
                 placeholder="Cole métricas, observações ou insights do período..."
             )
+            if selected_client.get("performance_context"):
+                st.markdown(
+                    '<div style="background:#d1fae5;color:#065f46;font-size:.75rem;'
+                    'font-weight:600;padding:4px 12px;border-radius:8px;display:inline-block;">'
+                    '✅ Relatório de performance cadastrado</div>',
+                    unsafe_allow_html=True,
+                )
             if st.button("💾 Salvar relatório", use_container_width=True, key="btn_save_report"):
-                new_tov = ""
+                new_ctx = ""
                 if report_file:
-                    new_tov = extract_text(report_file)
+                    new_ctx = extract_text(report_file)
                 elif report_manual.strip():
-                    new_tov = report_manual.strip()
-                if not new_tov:
+                    new_ctx = report_manual.strip()
+                if not new_ctx:
                     st.warning("Selecione um arquivo ou cole o conteúdo do relatório.")
                 else:
-                    updated = {**selected_client, "tone_of_voice": new_tov}
-                    ok, msg = save_client(updated)
+                    ok, msg = save_performance_context(selected_client["name"], new_ctx)
                     if ok:
-                        st.success("✅ Relatório salvo com sucesso!")
+                        st.success(msg)
                         st.rerun()
                     else:
                         st.error(msg)
@@ -520,7 +527,8 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                     "client_tags":          selected_client.get("tags", []) if selected_client else [],
                     "client_observations":  selected_client.get("observations", "") if selected_client else "",
                     "client_goals":         selected_client.get("goals", {}) if selected_client else {},
-                    "client_competitors":   selected_client.get("competitors", "") if selected_client else "",
+                    "client_competitors":          selected_client.get("competitors", "") if selected_client else "",
+                    "client_performance_context": selected_client.get("performance_context", "") if selected_client else "",
                     # ── Histórico de copies ───────────────────────────────
                     "client_approved_copies": client_approved,
                     "client_rejected_copies": client_rejected,

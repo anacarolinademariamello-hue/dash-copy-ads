@@ -61,6 +61,7 @@ def _build_payload(form_data: dict, copy: dict, copy_index: int, status: str, re
         "criativo":         copy.get("criativo", ""),
         "status":           status,
         "reason":           reason,
+        "hook_score":       copy.get("hook_score", ""),
     }
 
 
@@ -117,7 +118,7 @@ def load_saved(status: str = "", client_name: str = "", limit: int = 50) -> list
         "limit":  str(limit),
         "select": "id,client_name,product,niche,objective,tipo_criativo,"
                   "tipo_nome,legenda_hook,legenda_corpo,legenda_cta,"
-                  "legenda_completa,criativo,status,reason,created_at",
+                  "legenda_completa,criativo,status,reason,hook_score,created_at",
     }
     if status:
         params["status"] = f"eq.{status}"
