@@ -46,7 +46,7 @@ def _load_from_supabase() -> list[dict]:
             params={
                 "active": "eq.true",
                 "order":  "name.asc",
-                "select": "key,name,handle,tone_of_voice,performance_context,competitors,bio,tags,observations,goals,nicho,sub_nicho",
+                "select": "key,name,handle,tone_of_voice,performance_context,competitors,bio,tags,observations,goals,nicho,sub_nicho,publico_alvo",
             },
             timeout=10,
         )
@@ -65,6 +65,7 @@ def _load_from_supabase() -> list[dict]:
                 "goals":               r.get("goals") or {},
                 "nicho":               r.get("nicho") or "",
                 "sub_nicho":           r.get("sub_nicho") or "",
+                "publico_alvo":        r.get("publico_alvo") or "",
                 "_source":             "supabase",
             }
             for r in rows
@@ -368,6 +369,30 @@ def load_latest_report_metrics(client_key: str) -> str:
                     f"CTR {c['ctr']:.2f}% | CPM R${c['cpm']:.2f} | CPC R${c['cpc']:.2f} | {status_label}"
                 )
             lines.append("  → Criativos para campanhas com status ⚠️ precisam de hooks mais fortes para melhorar o CTR.")
+
+        # Análise estratégica persistida da IA
+        ai = m.get("ai_strategic")
+        if ai and isinstance(ai, dict):
+            strengths  = ai.get("strengths", [])
+            attentions = ai.get("attentions", [])
+            if strengths or attentions:
+                lines.append("\nAnálise estratégica do último relatório:")
+                if strengths:
+                    lines.append("  Pontos fortes:")
+                    for item in strengths[:4]:
+                        text = item[1] if isinstance(item, (list, tuple)) else item.get("text", "")
+                        # Remove tags HTML para o prompt de texto
+                        import re as _re
+                        text = _re.sub(r"<[^>]+>", "", text)
+                        lines.append(f"  • {text}")
+                if attentions:
+                    lines.append("  Pontos de atenção / oportunidades:")
+                    for item in attentions[:4]:
+                        text = item[1] if isinstance(item, (list, tuple)) else item.get("text", "")
+                        import re as _re
+                        text = _re.sub(r"<[^>]+>", "", text)
+                        lines.append(f"  • {text}")
+                lines.append("  → Use esses insights para calibrar o tom, a urgência e os argumentos das copies.")
 
         return "\n".join(lines)
 

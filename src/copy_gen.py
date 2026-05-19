@@ -108,6 +108,8 @@ def _build_prompt(form: dict) -> str:
     client_profile_parts = []
     if form.get("client_bio"):
         client_profile_parts.append(f"- Descrição: {form['client_bio']}")
+    if form.get("client_publico_alvo"):
+        client_profile_parts.append(f"- Público-alvo cadastrado: {form['client_publico_alvo']}")
     if form.get("client_tags"):
         tags = form["client_tags"]
         if isinstance(tags, list):
@@ -141,26 +143,44 @@ def _build_prompt(form: dict) -> str:
         if client_profile_parts else ""
     )
 
-    # ── Copies aprovadas — exemplos do que funciona ───────────────────────────
+    # ── Copies aprovadas — ranking por hook_score × CTR real da campanha ────────
     approved_copies = form.get("client_approved_copies", [])
-    # Prioriza copies com hook_score_num >= 7; se não houver, usa todas
-    high_quality = [c for c in approved_copies if (c.get("hook_score_num") or 0) >= 7]
-    approved_copies = high_quality if high_quality else approved_copies
     approved_line = ""
     if approved_copies:
+        # Calcula score composto: hook_score_num × fator_ctr
+        def _composite_score(c: dict) -> float:
+            hook_num = float(c.get("hook_score_num") or 0)
+            ctr      = float(c.get("campaign_ctr") or 0)   # adicionado em app.py
+            # CTR acima de 2% = bônus; abaixo = penalidade; sem dados = neutro (×1)
+            if ctr > 0:
+                ctr_factor = min(ctr / 1.5, 2.0)  # normalizado: 1.5% CTR = ×1.0
+            else:
+                ctr_factor = 1.0
+            return hook_num * ctr_factor
+
+        # Ordena pelas melhores copies (hook + CTR combinados)
+        sorted_copies = sorted(approved_copies, key=_composite_score, reverse=True)
+
         examples = []
-        for c in approved_copies[:5]:  # máximo 5 exemplos
-            hook = c.get("legenda_hook", "").strip()
+        for c in sorted_copies[:5]:
+            hook  = c.get("legenda_hook", "").strip()
             corpo = c.get("legenda_corpo", "").strip()
-            tipo = c.get("tipo_nome", "")
+            tipo  = c.get("tipo_nome", "")
             score = c.get("hook_score", "").strip()
-            score_str = f" | Score do hook: {score}" if score else ""
+            ctr   = c.get("campaign_ctr", 0)
+
+            score_str = f" | Hook: {score}" if score else ""
+            ctr_str   = f" | CTR real: {ctr:.2f}%" if ctr else ""
             if hook:
-                examples.append(f"[{tipo}{score_str}]\nHook: {hook}\nCorpo: {corpo[:200]}{'...' if len(corpo) > 200 else ''}")
+                examples.append(
+                    f"[{tipo}{score_str}{ctr_str}]\n"
+                    f"Hook: {hook}\n"
+                    f"Corpo: {corpo[:200]}{'...' if len(corpo) > 200 else ''}"
+                )
         if examples:
             approved_line = (
                 "\n\n## COPIES QUE FUNCIONARAM PARA ESTE CLIENTE — USE COMO REFERÊNCIA DE ESTILO E TOM\n"
-                "Estas copies foram aprovadas anteriormente. Analise o padrão de linguagem, ritmo e abordagem.\n\n"
+                "Ordenadas por relevância (hook score × CTR real da campanha). As primeiras são as mais eficazes.\n\n"
                 + "\n\n".join(examples)
             )
 

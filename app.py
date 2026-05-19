@@ -330,39 +330,36 @@ if modo == "Cliente cadastrado":
                     st.session_state["confirm_delete"] = None
                     st.rerun()
 
-        with st.expander("📤 Upar relatório de performance deste cliente"):
-            st.caption("O relatório é salvo separadamente do tom de voz e usado pela IA como contexto de performance.")
-            report_file = st.file_uploader(
-                "Relatório de performance (PDF ou TXT)",
-                type=["pdf", "txt"], key="report_upload",
-            )
-            report_manual = st.text_area(
-                "Ou cole os dados do relatório aqui",
-                height=80, key="report_manual",
-                placeholder="Cole métricas, observações ou insights do período..."
-            )
-            if selected_client.get("performance_context"):
+        # ── Painel: métricas do último relatório automático ───────────────
+        _client_key_panel = selected_client.get("key", "")
+        _metrics_raw = load_latest_report_metrics(_client_key_panel) if _client_key_panel else ""
+        if _metrics_raw:
+            with st.expander("📊 Último relatório automático — dados que a IA vai usar", expanded=False):
                 st.markdown(
-                    '<div style="background:#d1fae5;color:#065f46;font-size:.75rem;'
-                    'font-weight:600;padding:4px 12px;border-radius:8px;display:inline-block;">'
-                    '✅ Relatório de performance cadastrado</div>',
+                    f'<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;'
+                    f'padding:12px 16px;font-size:.82rem;white-space:pre-wrap;color:#374151;line-height:1.7;">'
+                    f'{_metrics_raw}</div>',
                     unsafe_allow_html=True,
                 )
-            if st.button("💾 Salvar relatório", use_container_width=True, key="btn_save_report"):
-                new_ctx = ""
-                if report_file:
-                    new_ctx = extract_text(report_file)
-                elif report_manual.strip():
-                    new_ctx = report_manual.strip()
-                if not new_ctx:
-                    st.warning("Selecione um arquivo ou cole o conteúdo do relatório.")
-                else:
-                    ok, msg = save_performance_context(selected_client["name"], new_ctx)
-                    if ok:
-                        st.success(msg)
-                        st.rerun()
+                st.caption("Esses dados são injetados automaticamente no prompt toda vez que você gerar copies para este cliente.")
+        else:
+            with st.expander("📊 Contexto de performance — complementar (opcional)", expanded=False):
+                st.caption("Ainda não há relatório automático para este cliente. Cole dados manualmente para enriquecer a IA enquanto o histórico não acumula.")
+                report_manual = st.text_area(
+                    "Dados de performance (opcional)",
+                    height=80, key="report_manual",
+                    placeholder="Ex: CTR médio 2.1%, CPM R$18, melhor formato: Reels, público 25-34 anos..."
+                )
+                if st.button("💾 Salvar contexto", use_container_width=True, key="btn_save_report"):
+                    if report_manual.strip():
+                        ok, msg = save_performance_context(selected_client["name"], report_manual.strip())
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
                     else:
-                        st.error(msg)
+                        st.warning("Digite algum contexto antes de salvar.")
 
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -393,8 +390,14 @@ with col3:
     product = st.text_input("Produto ou Serviço",
                             placeholder="Ex: Consultoria de emagrecimento online", key="product")
 with col4:
-    audience = st.text_input("Público-Alvo",
-                             placeholder="Ex: Mulheres 30-50 que já tentaram dieta", key="audience")
+    _pub_default = selected_client.get("publico_alvo", "") if selected_client else ""
+    audience = st.text_input(
+        "Público-Alvo",
+        value=_pub_default,
+        placeholder="Ex: Mulheres 30-50 que já tentaram dieta",
+        key="audience",
+        help="Auto-preenchido com o público-alvo cadastrado. Edite se necessário.",
+    )
 
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -537,6 +540,16 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                     # Padrões de rejeição agregados
                     client_rejection_patterns = get_rejection_patterns(selected_client["name"])
 
+                # ── Enriquece copies aprovadas com CTR real da campanha ───────
+                _client_key = selected_client.get("key", "") if selected_client else ""
+                for _copy in client_approved:
+                    _camp = (_copy.get("campaign_name") or "").strip()
+                    if _camp and _client_key:
+                        _perf = get_campaign_performance(_client_key, _camp)
+                        _copy["campaign_ctr"] = _perf["ctr"] if _perf else 0
+                    else:
+                        _copy["campaign_ctr"] = 0
+
                 form_data = {
                     "niche": niche,
                     "sub_niche": sub_niche,
@@ -565,10 +578,11 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                     "client_tags":          selected_client.get("tags", []) if selected_client else [],
                     "client_observations":  selected_client.get("observations", "") if selected_client else "",
                     "client_goals":         selected_client.get("goals", {}) if selected_client else {},
-                    "client_competitors":          selected_client.get("competitors", "") if selected_client else "",
+                    "client_competitors":         selected_client.get("competitors", "") if selected_client else "",
+                    "client_publico_alvo":        selected_client.get("publico_alvo", "") if selected_client else "",
                     "client_performance_context": selected_client.get("performance_context", "") if selected_client else "",
                     "client_report_metrics":      client_report_metrics,
-                    # ── Histórico de copies ───────────────────────────────
+                    # ── Histórico de copies (com CTR enriquecido) ─────────
                     "client_approved_copies":    client_approved,
                     "client_rejected_copies":    client_rejected,
                     "client_rejection_patterns": client_rejection_patterns,
