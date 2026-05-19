@@ -52,7 +52,7 @@ def _extract_score_num(hook_score: str) -> int:
 
 # ── Montar payload base ────────────────────────────────────────────────────────
 
-def _build_payload(form_data: dict, copy: dict, copy_index: int, status: str, reason: str = "") -> dict:
+def _build_payload(form_data: dict, copy: dict, copy_index: int, status: str, reason: str = "", campaign_name: str = "") -> dict:
     return {
         "client_name":      form_data.get("client_name") or "",
         "client_key":       form_data.get("client_key") or "",
@@ -74,12 +74,13 @@ def _build_payload(form_data: dict, copy: dict, copy_index: int, status: str, re
         "reason":           reason,
         "hook_score":       copy.get("hook_score", ""),
         "hook_score_num":   _extract_score_num(copy.get("hook_score", "")),
+        "campaign_name":    campaign_name,
     }
 
 
 # ── Salvar copy aprovada ──────────────────────────────────────────────────────
 
-def save_approved_copy(form_data: dict, copy: dict, copy_index: int) -> bool:
+def save_approved_copy(form_data: dict, copy: dict, copy_index: int, campaign_name: str = "") -> bool:
     """Salva uma copy aprovada. Chamada ao clicar ✅ Aprovar."""
     if not _configured():
         return False
@@ -87,7 +88,7 @@ def save_approved_copy(form_data: dict, copy: dict, copy_index: int) -> bool:
         r = requests.post(
             _rest(),
             headers=_headers(),
-            json=_build_payload(form_data, copy, copy_index, "aprovada"),
+            json=_build_payload(form_data, copy, copy_index, "aprovada", campaign_name=campaign_name),
             timeout=10,
         )
         return r.status_code in (200, 201)
@@ -128,9 +129,10 @@ def load_saved(status: str = "", client_name: str = "", limit: int = 50) -> list
     params = {
         "order":  "created_at.desc",
         "limit":  str(limit),
-        "select": "id,client_name,product,niche,objective,tipo_criativo,"
+        "select": "id,client_name,client_key,product,niche,objective,tipo_criativo,"
                   "tipo_nome,legenda_hook,legenda_corpo,legenda_cta,"
-                  "legenda_completa,criativo,status,reason,hook_score,created_at",
+                  "legenda_completa,criativo,status,reason,hook_score,hook_score_num,"
+                  "campaign_name,created_at",
     }
     if status:
         params["status"] = f"eq.{status}"
@@ -215,3 +217,60 @@ def get_rejection_patterns(client_name: str) -> str:
     lines.append("  → Ajuste o tom e estrutura desde o início para não repetir esses erros.")
 
     return "\n".join(lines)
+
+
+# ── Performance real da campanha ───────────────────────────────────────────────
+
+import json as _json
+
+def get_campaign_performance(client_key: str, campaign_name: str) -> dict | None:
+    """
+    Busca a performance real de uma campanha no histórico de relatórios.
+    Retorna dict com ctr, cpm, cpc, status ou None se não encontrado.
+    Compara pelo nome da campanha (case-insensitive, substring match).
+    """
+    if not _configured() or not client_key or not campaign_name:
+        return None
+
+    url_base, key = _creds()
+    try:
+        r = requests.get(
+            f"{url_base}/rest/v1/report_history",
+            headers={"apikey": key, "Authorization": f"Bearer {key}"},
+            params={
+                "client_key": f"eq.{client_key}",
+                "order":      "generated_at.desc",
+                "limit":      "5",          # busca nos 5 relatórios mais recentes
+                "select":     "metrics,date_from,date_to",
+            },
+            timeout=10,
+        )
+        r.raise_for_status()
+        rows = r.json()
+    except Exception:
+        return None
+
+    campaign_lower = campaign_name.strip().lower()
+
+    for row in rows:
+        metrics = row.get("metrics", {})
+        if isinstance(metrics, str):
+            try:
+                metrics = _json.loads(metrics)
+            except Exception:
+                continue
+
+        campaigns = metrics.get("top_campaigns", [])
+        for c in campaigns:
+            if campaign_lower in c.get("name", "").lower():
+                return {
+                    "name":      c.get("name", campaign_name),
+                    "ctr":       round(float(c.get("ctr", 0)), 2),
+                    "cpm":       round(float(c.get("cpm", 0)), 2),
+                    "cpc":       round(float(c.get("cpc", 0)), 2),
+                    "spend":     round(float(c.get("spend", 0)), 2),
+                    "status":    c.get("status", ""),
+                    "period":    f"{row.get('date_from','')[:7]} → {row.get('date_to','')[:7]}",
+                }
+
+    return None

@@ -114,11 +114,12 @@ def load_clients() -> list[dict]:
         return []
 
 
-def delete_client_supabase(client_name: str) -> tuple[bool, str]:
-    """Desativa cliente no Supabase (soft delete — marca active=false)."""
+def delete_client_supabase(client_key: str, client_name: str = "") -> tuple[bool, str]:
+    """Desativa cliente no Supabase (soft delete — marca active=false). Filtra por key (único)."""
     if not _supabase_configured():
         return False, "Supabase não configurado."
     url, key = _supabase_creds()
+    label = client_name or client_key
     try:
         r = requests.patch(
             f"{url}/rest/v1/clients",
@@ -128,14 +129,14 @@ def delete_client_supabase(client_name: str) -> tuple[bool, str]:
                 "Content-Type": "application/json",
                 "Prefer": "return=minimal",
             },
-            params={"name": f"eq.{client_name}"},
+            params={"key": f"eq.{client_key}"},
             json={"active": False},
             timeout=10,
         )
         if r.status_code in (200, 204):
             load_clients.clear()
             _load_from_supabase.clear()
-            return True, f"Cliente '{client_name}' desativado."
+            return True, f"Cliente '{label}' desativado."
         return False, f"Erro {r.status_code}: {r.text}"
     except Exception as e:
         return False, f"Erro: {e}"

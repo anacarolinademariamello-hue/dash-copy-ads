@@ -4,7 +4,7 @@ import base64
 from src.niches import NICHES, OBJECTIVES, TONES, CTAS, FORMAT_OPTIONS, FORMAT_TIPS
 from src.copy_gen import generate_copies, COPY_TYPES, CRIATIVO_LABELS
 from src.clients import load_clients, save_client, delete_client, extract_text, delete_client_supabase, save_performance_context, load_latest_report_metrics
-from src.copies_db import save_approved_copy, save_rejected_copy, load_saved, get_rejection_patterns
+from src.copies_db import save_approved_copy, save_rejected_copy, load_saved, get_rejection_patterns, get_campaign_performance
 from src.styles import (
     get_sidebar_css,
     get_main_css,
@@ -177,8 +177,17 @@ with st.sidebar:
                 st.text_area("cri", value=copy.get("criativo", ""),
                              height=110, label_visibility="collapsed", key=f"cri_{i}")
 
+                # ── Campo de campanha (para fechar o loop de performance) ─────
+                campaign_input = st.text_input(
+                    "🔗 Campanha (opcional)",
+                    placeholder="Ex: Nutrição Maio · Captação Leads",
+                    key=f"campaign_{i}",
+                    help="Nomeie a campanha onde essa copy será usada. "
+                         "Quando o relatório for gerado, o CTR real aparecerá aqui.",
+                )
+
                 col_ap1, col_ap2 = st.columns(2)
-                status_key   = f"approval_{i}"
+                status_key    = f"approval_{i}"
                 rejecting_key = f"rejecting_{i}"
                 if status_key not in st.session_state:
                     st.session_state[status_key] = None
@@ -189,7 +198,10 @@ with st.sidebar:
                     if st.button("✅ Aprovar", key=f"btn_aprove_{i}", use_container_width=True):
                         st.session_state[status_key]   = "aprovada"
                         st.session_state[rejecting_key] = False
-                        save_approved_copy(st.session_state.form_data, copy, i)
+                        save_approved_copy(
+                            st.session_state.form_data, copy, i,
+                            campaign_name=campaign_input.strip(),
+                        )
                         load_saved.clear()
                 with col_ap2:
                     if st.button("❌ Rejeitar", key=f"btn_reject_{i}", use_container_width=True):
@@ -306,7 +318,7 @@ if modo == "Cliente cadastrado":
             col_yes, col_no = st.columns(2)
             with col_yes:
                 if st.button("✅ Sim, excluir", key="btn_confirm_delete", use_container_width=True):
-                    ok, msg = delete_client_supabase(selected_client["name"])
+                    ok, msg = delete_client_supabase(selected_client["key"], selected_client["name"])
                     st.session_state["confirm_delete"] = None
                     if ok:
                         st.success(f"Cliente '{selected_client['name']}' desativado.")
@@ -584,10 +596,46 @@ with st.expander("📋 Banco de Copies Salvas", expanded=False):
             st.info("Nenhuma copy aprovada ainda. Clique em ✅ Aprovar para salvar.")
         else:
             for row in aprovadas:
-                created    = row.get("created_at", "")[:10] if row.get("created_at") else ""
-                client_str = f" · {row['client_name']}" if row.get("client_name") else ""
-                with st.expander(f"**{row.get('product','Sem título')}**{client_str} — {row.get('tipo_nome','')} — {created}", expanded=False):
+                created       = row.get("created_at", "")[:10] if row.get("created_at") else ""
+                client_str    = f" · {row['client_name']}" if row.get("client_name") else ""
+                campaign_name = row.get("campaign_name", "").strip()
+                camp_label    = f" · 🔗 {campaign_name}" if campaign_name else ""
+                with st.expander(f"**{row.get('product','Sem título')}**{client_str}{camp_label} — {row.get('tipo_nome','')} — {created}", expanded=False):
                     st.markdown(f'<div style="font-size:.78rem;color:#6b7280;margin-bottom:10px;">{row.get("niche","")} · {row.get("objective","")} · {row.get("tipo_criativo","")}</div>', unsafe_allow_html=True)
+
+                    # ── Performance real da campanha (loop fechado) ────────────
+                    if campaign_name and row.get("client_key"):
+                        perf = get_campaign_performance(row["client_key"], campaign_name)
+                        if perf:
+                            status_map = {
+                                "best":    ("✅ Melhor desempenho", "#d1fae5", "#065f46"),
+                                "warning": ("⚠️ Atenção — CTR baixo", "#fef3c7", "#92400e"),
+                                "ok":      ("📊 Regular", "#eff6ff", "#1e40af"),
+                                "ended":   ("⏹️ Encerrada", "#f3f4f6", "#374151"),
+                            }
+                            s_label, s_bg, s_color = status_map.get(perf["status"], ("", "#f3f4f6", "#374151"))
+                            st.markdown(
+                                f'<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;'
+                                f'padding:10px 14px;margin-bottom:12px;font-size:.83rem;">'
+                                f'<strong style="color:#15803d;">📈 Performance real — {perf["name"]}</strong>'
+                                f'<span style="float:right;background:{s_bg};color:{s_color};'
+                                f'padding:2px 8px;border-radius:6px;font-size:.75rem;font-weight:700;">{s_label}</span>'
+                                f'<br><span style="color:#374151;">CTR <strong>{perf["ctr"]}%</strong>'
+                                f' &nbsp;·&nbsp; CPM <strong>R${perf["cpm"]:.2f}</strong>'
+                                f' &nbsp;·&nbsp; CPC <strong>R${perf["cpc"]:.2f}</strong>'
+                                f' &nbsp;·&nbsp; Gasto <strong>R${perf["spend"]:.2f}</strong></span>'
+                                f'<br><span style="color:#9ca3af;font-size:.72rem;">Período: {perf["period"]}</span>'
+                                f'</div>',
+                                unsafe_allow_html=True,
+                            )
+                        elif campaign_name:
+                            st.markdown(
+                                f'<div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;'
+                                f'padding:8px 12px;margin-bottom:10px;font-size:.78rem;color:#6b7280;">'
+                                f'🔗 Campanha <strong>{campaign_name}</strong> — aguardando dados do relatório</div>',
+                                unsafe_allow_html=True,
+                            )
+
                     if row.get("legenda_hook"):
                         st.markdown("**Hook**"); st.code(row["legenda_hook"], language=None)
                     if row.get("legenda_corpo"):
