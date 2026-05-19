@@ -5,6 +5,8 @@ Tabela: saved_copies
   status = 'aprovada' | 'rejeitada'
   reason = motivo da rejeição (apenas para rejeitadas)
 """
+from __future__ import annotations
+
 import re
 import requests
 import streamlit as st
