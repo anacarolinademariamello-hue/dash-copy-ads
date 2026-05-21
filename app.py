@@ -282,6 +282,15 @@ st.markdown('<div class="client-section"><div class="form-section-title">Modo de
 modo = st.radio("", ["Consulta avulsa", "Cliente cadastrado"],
                 horizontal=True, label_visibility="collapsed", key="modo")
 
+# Limpa campos do briefing ao trocar para modo avulso para evitar
+# que conteúdo de sessões de clientes anteriores contamine a geração.
+if st.session_state.get("_last_modo") != modo:
+    if modo == "Consulta avulsa":
+        for _wk in ("criativo_estrutura", "referencias"):
+            if st.session_state.get(_wk):
+                st.session_state[_wk] = ""
+    st.session_state["_last_modo"] = modo
+
 selected_client = None
 
 if modo == "Cliente cadastrado":
@@ -318,7 +327,12 @@ if modo == "Cliente cadastrado":
             col_yes, col_no = st.columns(2)
             with col_yes:
                 if st.button("✅ Sim, excluir", key="btn_confirm_delete", use_container_width=True):
-                    ok, msg = delete_client_supabase(selected_client["key"], selected_client["name"])
+                    _del_key = selected_client.get("key", "").strip()
+                    if not _del_key:
+                        st.session_state["confirm_delete"] = None
+                        st.error("Este cliente não possui identificador (key) — exclusão não é possível. Verifique o cadastro.")
+                        st.rerun()
+                    ok, msg = delete_client_supabase(_del_key, selected_client["name"])
                     st.session_state["confirm_delete"] = None
                     if ok:
                         st.success(f"Cliente '{selected_client['name']}' desativado.")

@@ -240,6 +240,9 @@ def _build_prompt(form: dict) -> str:
 
     prompt = f"""Você é um redator sênior especialista em Meta Ads (Facebook e Instagram Ads) com profundo conhecimento do mercado brasileiro. Você escreve EXCLUSIVAMENTE copies para anúncios pagos — não posts orgânicos. Sua especialidade é criar textos que param o scroll, geram identificação imediata e aumentam o ROI dos anúncios.
 
+⚠️ RESTRIÇÃO ABSOLUTA — LEIA ANTES DE TUDO:
+JAMAIS use o padrão de negação seguida de afirmação redefinidora em frases curtas. Exemplos do que é TERMINANTEMENTE PROIBIDO: "Não é X. É Y.", "Não foi sorte. Foi método.", "Não é treino. É ciência.", "Não é dieta. É estilo de vida.", "Não é força de vontade. É estratégia.", "Não é acaso. É processo." — e qualquer variação com outros verbos, substantivos ou tempos verbais que siga essa mesma lógica (frase negativa curta + frase afirmativa curta que redefine ou corrige a anterior). Se a segunda frase corrige ou redefine a primeira, é essa estrutura proibida. Esta regra é absoluta e não tem exceção em NENHUMA das 5 variações.
+
 ## BRIEFING DO ANÚNCIO
 
 - **Nicho:** {form['niche']} › {form['sub_niche']}
@@ -286,8 +289,8 @@ Para cada variação, entregue DOIS blocos:
 - Tom de voz: {form['tone']}
 - Hook da legenda (primeira frase) DEVE parar o scroll — é o elemento mais crítico
 
-**Estruturas PROIBIDAS:**
-- O padrão "negação + afirmação em duas frases curtas": "Não é X. É Y.", "Não foi sorte. Foi método.", "Não é treino. É ciência.", "Não é dieta. É estilo de vida." — PROIBIDO em qualquer variação de verbo, substantivo ou tempo verbal. Se a segunda frase corrige ou redefine a primeira, é essa estrutura. Não use.
+**Estruturas PROIBIDAS (reforço — relembre a regra absoluta do início):**
+- O padrão "negação + afirmação redefinidora": "Não é X. É Y.", "Não foi sorte. Foi método.", "Não é treino. É ciência.", "Não é dieta. É estilo de vida.", "Não é acaso. É processo." — ABSOLUTAMENTE PROIBIDO em qualquer variação de verbo, substantivo ou tempo verbal, em qualquer uma das 5 copies. Se a segunda frase curta corrige ou redefine a primeira frase curta, é essa estrutura. Não use em nenhuma hipótese.
 - Clichês: "não perca tempo", "corra", "oferta imperdível", "oportunidade única"
 - Perguntas óbvias demais: "Quer emagrecer?", "Quer ganhar dinheiro?"
 - Hipérboles sem respaldo: "revolucionário", "milagroso", "nunca visto antes"
