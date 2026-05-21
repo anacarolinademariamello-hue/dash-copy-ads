@@ -544,11 +544,12 @@ if st.button("Gerar 5 Copies", use_container_width=True):
                 client_report_metrics = ""
                 client_rejection_patterns = ""
                 if selected_client:
-                    all_saved = load_saved(client_name=selected_client["name"], limit=20)
+                    _ck = selected_client.get("key", "")
+                    all_saved = load_saved(client_key=_ck, client_name=selected_client["name"], limit=20)
                     client_approved = [c for c in all_saved if c.get("status") == "aprovada"]
                     client_rejected = [c for c in all_saved if c.get("status") == "rejeitada"]
                     # Métricas reais do último relatório gerado
-                    client_key = selected_client.get("key", "")
+                    client_key = _ck
                     if client_key:
                         client_report_metrics = load_latest_report_metrics(client_key)
                     # Padrões de rejeição agregados

@@ -119,10 +119,11 @@ def save_rejected_copy(form_data: dict, copy: dict, copy_index: int, reason: str
 # ── Carregar histórico ────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=30)
-def load_saved(status: str = "", client_name: str = "", limit: int = 50) -> list[dict]:
+def load_saved(status: str = "", client_name: str = "", client_key: str = "", limit: int = 50) -> list[dict]:
     """
     Carrega copies salvas.
     status: 'aprovada' | 'rejeitada' | '' (todas)
+    Prefere filtrar por client_key quando disponível.
     """
     if not _configured():
         return []
@@ -138,7 +139,9 @@ def load_saved(status: str = "", client_name: str = "", limit: int = 50) -> list
     }
     if status:
         params["status"] = f"eq.{status}"
-    if client_name:
+    if client_key:
+        params["client_key"] = f"eq.{client_key}"
+    elif client_name:
         params["client_name"] = f"eq.{client_name}"
 
     try:
